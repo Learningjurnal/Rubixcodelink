@@ -1,13 +1,13 @@
 # Link Management Dashboard (Rubixxxlink)
 
-A modern, responsive link and download management dashboard built with React 19, Vite, Tailwind CSS, and Firebase Firestore.
+A modern, responsive link and download management dashboard built with React 19, Vite, Tailwind CSS, and Supabase.
 
 ## Features
 
 - **Link Organization**: Manage bookmark/download URLs with status, categorization tags, regions, and custom notes.
 - **Excel & Bulk Import**: Fast import from XLSX / CSV spreadsheets with smart URL extraction and duplicate detection.
 - **Duplicate Prevention**: Detects existing links to prevent redundant entries.
-- **Real-Time Database**: Powered by Firebase Firestore for instantaneous synchronization across devices.
+- **Real-Time Database**: Powered by Supabase (Postgres + Realtime) for instantaneous synchronization across devices.
 - **URL Status Checker**: Batch HTTP status verification for active / broken links.
 - **Error Resilient**: Integrated Error Boundary to catch and handle UI runtime issues gracefully.
 
@@ -15,7 +15,7 @@ A modern, responsive link and download management dashboard built with React 19,
 
 - **Frontend**: React 19, TypeScript, Vite
 - **Styling**: Tailwind CSS v4, Lucide React icons, Motion
-- **Data & Auth**: Firebase / Firestore, `@google/genai`
+- **Data & Auth**: Supabase (Postgres + Auth + Realtime), `@google/genai`
 - **Spreadsheets**: SheetJS (`xlsx`)
 
 ## Getting Started Locally
@@ -31,15 +31,14 @@ A modern, responsive link and download management dashboard built with React 19,
    npm install
    ```
 
-3. **Configure Firebase:**
-   Copy `.env.example` to `.env` and fill in your Firebase configuration values:
+3. **Configure Supabase:**
+   - Create a project at [supabase.com](https://supabase.com).
+   - Run the schema in `supabase/migrations/0001_init.sql` (Supabase dashboard → SQL Editor, or `supabase db push` with the Supabase CLI).
+   - Under Authentication → Providers, enable Email and (optionally) Google sign-in.
+   - Copy `.env.example` to `.env` and fill in your project's API credentials (Project Settings → API):
    ```env
-   VITE_FIREBASE_API_KEY=your_api_key
-   VITE_FIREBASE_AUTH_DOMAIN=your_project.firebaseapp.com
-   VITE_FIREBASE_PROJECT_ID=your_project_id
-   VITE_FIREBASE_STORAGE_BUCKET=your_project.appspot.com
-   VITE_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
-   VITE_FIREBASE_APP_ID=your_app_id
+   VITE_SUPABASE_URL=https://your-project.supabase.co
+   VITE_SUPABASE_ANON_KEY=your_anon_key
    ```
 
 4. **Run the development server:**

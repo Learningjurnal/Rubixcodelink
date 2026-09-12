@@ -5,7 +5,7 @@ import {
   createUserWithEmailAndPassword,
   signInWithGoogle,
   auth,
-} from '../lib/firebase';
+} from '../lib/supabase';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -35,7 +35,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
       if (err.code === 'auth/popup-closed-by-user') {
         setErrorMsg('Jendela login ditutup sebelum selesai.');
       } else if (err.code === 'auth/operation-not-allowed') {
-        setErrorMsg('Google Sign-In belum diaktifkan di Firebase Console.');
+        setErrorMsg('Google Sign-In belum diaktifkan di Supabase (Authentication > Providers).');
       } else {
         setErrorMsg(err.message || 'Gagal masuk dengan akun Google.');
       }
@@ -62,7 +62,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
     } catch (err: any) {
       console.error('Auth error:', err);
       if (err.code === 'auth/operation-not-allowed') {
-        setErrorMsg('Metode Email/Password belum diaktifkan di Firebase Console. Gunakan Google Sign-In.');
+        setErrorMsg('Metode Email/Password belum diaktifkan di Supabase (Authentication > Providers). Gunakan Google Sign-In.');
       } else if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
         setErrorMsg('Email atau kata sandi tidak cocok. Jika baru pertama kali, klik tab "Daftar Akun Baru".');
       } else if (err.code === 'auth/email-already-in-use') {
@@ -245,7 +245,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
           <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
             <span className="flex items-center gap-1">
               <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-              Terkoneksi Firebase Auth
+              Terkoneksi Supabase Auth
             </span>
             <span className="text-slate-400">Database Privat Cloud</span>
           </div>

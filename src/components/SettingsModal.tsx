@@ -13,7 +13,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import { AppSettings, LinkItem } from '../types';
-import { DEFAULT_SETTINGS, saveSettingsToFirestore } from '../lib/firebase';
+import { DEFAULT_SETTINGS } from '../lib/supabase';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -111,8 +111,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     };
 
     try {
-      await saveSettingsToFirestore(newConfig);
-      onSaveSettings(newConfig);
+      await onSaveSettings(newConfig);
       setSavedSuccess(true);
       setTimeout(() => {
         setSavedSuccess(false);
