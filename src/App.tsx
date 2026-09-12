@@ -1496,14 +1496,6 @@ export default function App() {
             addToast('success', `Selamat datang! Masuk sebagai ${email}.`);
             setActiveTab('dashboard_hub');
           }}
-          onDirectLogin={userObj => {
-            try {
-              localStorage.setItem('command_center_active_user', JSON.stringify(userObj));
-            } catch {}
-            setCurrentUser(userObj);
-            addToast('success', `Selamat datang! Masuk sebagai ${userObj.email}.`);
-            setActiveTab('dashboard_hub');
-          }}
         />
       </>
     );

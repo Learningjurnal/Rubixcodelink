@@ -9,8 +9,6 @@ import {
   Database,
   HardDrive,
   FileSpreadsheet,
-  UserCheck,
-  ExternalLink,
 } from 'lucide-react';
 import {
   auth,
@@ -27,43 +25,19 @@ export interface AppUser {
 
 interface AuthScreenProps {
   onSuccess?: (email: string) => void;
-  onDirectLogin?: (user: AppUser) => void;
 }
 
-export const AuthScreen: React.FC<AuthScreenProps> = ({ onSuccess, onDirectLogin }) => {
+export const AuthScreen: React.FC<AuthScreenProps> = ({ onSuccess }) => {
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
-  const [showDirectLoginPrompt, setShowDirectLoginPrompt] = useState(false);
-
-  // Helper for direct single-user local fallback (deterministic UID by email)
-  const triggerDirectLogin = (targetEmail?: string) => {
-    const cleanEmail = (targetEmail || email || 'user@commandcenter.local').trim();
-    let hash = 0;
-    for (let i = 0; i < cleanEmail.length; i++) {
-      hash = ((hash << 5) - hash + cleanEmail.charCodeAt(i)) | 0;
-    }
-    const safeUid = 'usr_' + Math.abs(hash).toString(36) + '_' + cleanEmail.replace(/[^a-zA-Z0-9]/g, '').slice(0, 10);
-    const userObj: AppUser = {
-      uid: safeUid,
-      email: cleanEmail,
-      displayName: cleanEmail.split('@')[0],
-    };
-
-    if (onDirectLogin) {
-      onDirectLogin(userObj);
-    } else if (onSuccess) {
-      onSuccess(cleanEmail);
-    }
-  };
 
   // Google 1-Click Sign-In (Primary configured Supabase OAuth provider)
   const handleGoogleSignIn = async () => {
     setErrorMsg('');
-    setShowDirectLoginPrompt(false);
     setGoogleLoading(true);
 
     try {
@@ -74,14 +48,11 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onSuccess, onDirectLogin
       if (err.code === 'auth/popup-closed-by-user') {
         setErrorMsg('Jendela login Google ditutup sebelum proses selesai.');
       } else if (err.code === 'auth/popup-blocked') {
-        setErrorMsg('Popup browser diblokir. Izinkan popup untuk situs ini atau gunakan opsi Sesi Langsung di bawah.');
-        setShowDirectLoginPrompt(true);
+        setErrorMsg('Popup browser diblokir. Izinkan popup untuk situs ini, atau gunakan Email/Password di bawah.');
       } else if (err.code === 'auth/operation-not-allowed') {
-        setErrorMsg('Google Sign-In belum diaktifkan di Supabase (Authentication > Providers). Gunakan tombol Sesi Langsung di bawah.');
-        setShowDirectLoginPrompt(true);
+        setErrorMsg('Google Sign-In belum diaktifkan di Supabase (Authentication > Providers). Gunakan Email/Password di bawah.');
       } else {
         setErrorMsg(err.message || 'Gagal masuk dengan Google.');
-        setShowDirectLoginPrompt(true);
       }
     } finally {
       setGoogleLoading(false);
@@ -91,7 +62,6 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onSuccess, onDirectLogin
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
-    setShowDirectLoginPrompt(false);
     setLoading(true);
 
     try {
@@ -106,9 +76,8 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onSuccess, onDirectLogin
       console.error('Auth error:', err);
       if (err.code === 'auth/operation-not-allowed') {
         setErrorMsg(
-          'Metode Login Email/Password belum diaktifkan di project Supabase ini (Authentication > Providers). Gunakan tombol "Masuk dengan Akun Google" di atas atau masuk langsung dengan "Sesi Langsung Pengguna Tunggal" di bawah.'
+          'Metode Login Email/Password belum diaktifkan di project Supabase ini (Authentication > Providers), atau pendaftaran akun baru sedang ditutup (Authentication > Sign In / Providers > "Allow new users to sign up"). Hubungi admin project ini.'
         );
-        setShowDirectLoginPrompt(true);
       } else if (
         err.code === 'auth/user-not-found' ||
         err.code === 'auth/wrong-password' ||
@@ -213,7 +182,6 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onSuccess, onDirectLogin
               onClick={() => {
                 setMode('login');
                 setErrorMsg('');
-                setShowDirectLoginPrompt(false);
               }}
               className={`py-2.5 text-xs font-bold rounded-2xl transition flex items-center justify-center gap-2 cursor-pointer ${
                 mode === 'login'
@@ -230,7 +198,6 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onSuccess, onDirectLogin
               onClick={() => {
                 setMode('register');
                 setErrorMsg('');
-                setShowDirectLoginPrompt(false);
               }}
               className={`py-2.5 text-xs font-bold rounded-2xl transition flex items-center justify-center gap-2 cursor-pointer ${
                 mode === 'register'
@@ -245,23 +212,9 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onSuccess, onDirectLogin
 
           <form onSubmit={handleSubmit} className="p-6 sm:p-7 space-y-4">
             {errorMsg && (
-              <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-2xl text-xs text-rose-700 flex flex-col gap-2.5 animate-in fade-in">
-                <div className="flex items-start gap-2.5">
-                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-                  <span className="leading-relaxed">{errorMsg}</span>
-                </div>
-
-                {/* Helpful Direct Activation Button if provider is restricted */}
-                {showDirectLoginPrompt && (
-                  <button
-                    type="button"
-                    onClick={() => triggerDirectLogin(email || 'user@commandcenter.local')}
-                    className="mt-1 w-full py-2 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer shadow-xs"
-                  >
-                    <UserCheck className="w-4 h-4" />
-                    <span>Masuk Langsung dengan Sesi Pengguna Tunggal</span>
-                  </button>
-                )}
+              <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-2xl text-xs text-rose-700 flex items-start gap-2.5 animate-in fade-in">
+                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                <span className="leading-relaxed">{errorMsg}</span>
               </div>
             )}
 
@@ -319,19 +272,6 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onSuccess, onDirectLogin
                     <span>Buat Akun & Inisialisasi Dashboard</span>
                   </>
                 )}
-              </button>
-            </div>
-
-            {/* Alternative Single User Workspace Access */}
-            <div className="pt-2">
-              <button
-                type="button"
-                id="btn-direct-single-user-mode"
-                onClick={() => triggerDirectLogin(email || 'user.utama@commandcenter.local')}
-                className="w-full py-2.5 px-4 bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-2xl text-xs font-semibold transition flex items-center justify-center gap-2 cursor-pointer"
-              >
-                <UserCheck className="w-4 h-4 text-emerald-600" />
-                <span>Masuk Sesi Langsung (Pengguna Tunggal)</span>
               </button>
             </div>
 
