@@ -86,6 +86,8 @@ import {
   User,
   subscribeToUserFolders,
   addUserFolderToFirestore,
+  batchAddUserFoldersToFirestore,
+  clearAllUserFoldersFromFirestore,
   updateUserFolderInFirestore,
   deleteUserFolderFromFirestore,
   addFileToUserFolderInFirestore,
@@ -1400,11 +1402,14 @@ export default function App() {
       localStorage.setItem('rubixxx_folders_active', JSON.stringify(updated));
     } catch {}
 
+    let savedToCloud = true;
     if (currentUser) {
       try {
         await addUserFolderToFirestore(currentUser.uid, newFolder);
-      } catch {
-        // Saved locally
+      } catch (e: any) {
+        console.error('Failed to persist custom folder to Supabase:', e);
+        savedToCloud = false;
+        addToast('error', `Folder "${newFolder.name}" GAGAL tersimpan ke database: ${e?.message || 'periksa koneksi/sesi login Anda.'}`);
       }
     }
 
@@ -1424,17 +1429,37 @@ export default function App() {
         return d;
       })
     );
-    addToast('success', `Folder "${newFolder.name}" berhasil ditambahkan ke ${newFolder.hddName || 'HDD'}.`);
+    if (savedToCloud) {
+      addToast('success', `Folder "${newFolder.name}" berhasil ditambahkan ke ${newFolder.hddName || 'HDD'}.`);
+    }
   };
 
-  const handleImportExcelComplete = (importedFolders: StorageFolder[], updatedDrives: HardDriveProfile[]) => {
+  const handleImportExcelComplete = async (importedFolders: StorageFolder[], updatedDrives: HardDriveProfile[]) => {
     setFolders(importedFolders);
     setHardDrives(updatedDrives);
     try {
       localStorage.setItem('rubixxx_folders_active', JSON.stringify(importedFolders));
       localStorage.setItem('rubixxx_hard_drives', JSON.stringify(updatedDrives));
     } catch {}
-    addToast('success', `Berhasil mengimpor manifest! ${importedFolders.length} folder 4 HDD siap dikelola.`);
+
+    if (!currentUser) {
+      addToast('warning', `Manifest diimpor secara lokal (${importedFolders.length} folder) — masuk akun untuk menyimpan ke cloud.`);
+      return;
+    }
+
+    try {
+      // Import replaces the whole folder set (matches the local setFolders
+      // above), so the cloud copy must be replaced the same way, not merged.
+      await clearAllUserFoldersFromFirestore(currentUser.uid);
+      await batchAddUserFoldersToFirestore(currentUser.uid, importedFolders);
+      addToast('success', `Berhasil mengimpor manifest! ${importedFolders.length} folder 4 HDD tersimpan ke database Cloud.`);
+    } catch (e: any) {
+      console.error('Failed to persist imported Excel manifest to Supabase:', e);
+      addToast(
+        'error',
+        `Manifest diimpor tapi GAGAL disimpan ke database (hanya tersimpan di tampilan lokal, hilang saat refresh). ${e?.message || ''}`
+      );
+    }
   };
 
   const handleAddTransferPlan = (plan: Omit<HddTransferPlan, 'id' | 'createdAt'>) => {
