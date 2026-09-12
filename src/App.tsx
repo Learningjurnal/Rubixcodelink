@@ -1302,7 +1302,14 @@ export default function App() {
 
   const handleDeleteSubfolder = async (parentFolderId: string, subfolderId: string) => {
     const parent = folders.find(f => f.id === parentFolderId);
-    if (!parent) return;
+    if (!parent) {
+      // Previously silent — the delete button would visibly do nothing,
+      // indistinguishable from being broken. In practice this means the
+      // parent folder isn't in local state anymore (e.g. deleted/moved by
+      // another tab or refetch) even though the row was still on screen.
+      addToast('error', 'Folder induk subfolder ini tidak ditemukan lagi — coba muat ulang halaman.');
+      return;
+    }
 
     const targetSub = (parent.subfolders || []).find(s => s.id === subfolderId);
     const updatedSubfolders = (parent.subfolders || []).filter(sub => sub.id !== subfolderId);
@@ -1343,7 +1350,17 @@ export default function App() {
   // a sibling call's change to the same parent.
 
   const handleBulkDeleteSubfolders = async (items: { parentFolderId: string; subfolderId: string }[]) => {
-    if (!currentUser || items.length === 0) return;
+    if (items.length === 0) return;
+    if (!currentUser) {
+      // Previously silent — if this ever fires (e.g. the auth session
+      // dropped out from under an already-open dashboard), the delete
+      // button visibly does nothing, indistinguishable from it being
+      // broken. It should never happen while the dashboard is showing
+      // (App.tsx renders AuthScreen instead whenever currentUser is
+      // falsy), so seeing this toast is itself a useful signal.
+      addToast('error', 'Sesi login tidak terdeteksi — muat ulang halaman dan login kembali sebelum menghapus.');
+      return;
+    }
 
     const byParent = new Map<string, Set<string>>();
     items.forEach(({ parentFolderId, subfolderId }) => {
@@ -1483,7 +1500,11 @@ export default function App() {
   // Each folder is its own row, so no shared-parent race to worry about here.
 
   const handleBulkDeleteFolders = async (folderIds: string[]) => {
-    if (!currentUser || folderIds.length === 0) return;
+    if (folderIds.length === 0) return;
+    if (!currentUser) {
+      addToast('error', 'Sesi login tidak terdeteksi — muat ulang halaman dan login kembali sebelum menghapus.');
+      return;
+    }
     try {
       for (const id of folderIds) {
         await deleteUserFolderFromFirestore(currentUser.uid, id);

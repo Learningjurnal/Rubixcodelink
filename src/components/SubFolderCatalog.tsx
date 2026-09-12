@@ -225,7 +225,35 @@ export const SubFolderCatalog: React.FC<SubFolderCatalogProps> = ({
 
   const handleBulkDeleteClick = () => {
     const payload = getSelectedPayload();
-    if (payload.length === 0) return;
+    if (payload.length === 0) {
+      // Every selected row lacks a real database id (getSelectedPayload
+      // filters those out — see its comment). This used to return with
+      // zero feedback: clicking "Hapus (N)" did visibly nothing, not even
+      // a confirm dialog, which is indistinguishable from a broken button.
+      // Surfacing it tells the user (and us) this is a data problem, not
+      // silence.
+      alert(
+        `${selectedIds.size} subfolder terpilih, tapi tidak satu pun punya id database yang valid, jadi tidak bisa dihapus. Ini kemungkinan data lama — coba muat ulang halaman, atau laporkan subfolder mana ini.`
+      );
+      return;
+    }
+    if (payload.length < selectedIds.size) {
+      // Partial case: some selected rows have a real id (will be deleted
+      // below) and some don't (silently skipped) — tell the user up front
+      // so a smaller-than-expected deletion doesn't look like a bug.
+      if (
+        !window.confirm(
+          `${selectedIds.size} subfolder dipilih, tapi hanya ${payload.length} yang punya id database valid dan bisa dihapus. ${
+            selectedIds.size - payload.length
+          } lainnya akan DILEWATI. Lanjutkan menghapus ${payload.length} subfolder ini?`
+        )
+      ) {
+        return;
+      }
+      onBulkDelete(payload);
+      clearSelection();
+      return;
+    }
     if (window.confirm(`Hapus ${payload.length} subfolder terpilih beserta seluruh isinya? Tindakan ini tidak dapat dibatalkan.`)) {
       onBulkDelete(payload);
       clearSelection();
