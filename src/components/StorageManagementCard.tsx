@@ -48,6 +48,12 @@ interface StorageManagementCardProps {
   onOpenSubfolder: (subfolder: StorageSubfolder, parentFolder: StorageFolder) => void;
   onUpdateSubfolder: (parentFolderId: string, subfolderId: string, updatedFields: Partial<StorageSubfolder>) => void;
   onDeleteSubfolder: (parentFolderId: string, subfolderId: string) => void;
+  onBulkDeleteSubfolders: (items: { parentFolderId: string; subfolderId: string }[]) => void;
+  onBulkMoveSubfoldersToHdd: (items: { parentFolderId: string; subfolderId: string }[], targetHddId: string, targetHddName?: string) => void;
+  onBulkMoveSubfoldersToParent: (items: { parentFolderId: string; subfolderId: string }[], targetParentId: string) => void;
+  onDeleteFolder: (folderId: string) => void;
+  onBulkDeleteFolders: (folderIds: string[]) => void;
+  onBulkMoveFoldersToHdd: (folderIds: string[], targetHddId: string, targetHddName?: string) => void;
   onOpenNewFolderModal: () => void;
   onSaveDrives: (newDrives: HardDriveProfile[]) => void;
   onAddCustomFolder: (newFolder: StorageFolder) => void;
@@ -67,6 +73,12 @@ export const StorageManagementCard: React.FC<StorageManagementCardProps> = ({
   onOpenSubfolder,
   onUpdateSubfolder,
   onDeleteSubfolder,
+  onBulkDeleteSubfolders,
+  onBulkMoveSubfoldersToHdd,
+  onBulkMoveSubfoldersToParent,
+  onDeleteFolder,
+  onBulkDeleteFolders,
+  onBulkMoveFoldersToHdd,
   onOpenNewFolderModal,
   onSaveDrives,
   onAddCustomFolder,
@@ -396,6 +408,9 @@ export const StorageManagementCard: React.FC<StorageManagementCardProps> = ({
           onOpenSubfolder={onOpenSubfolder}
           onUpdateSubfolder={onUpdateSubfolder}
           onDeleteSubfolder={onDeleteSubfolder}
+          onBulkDelete={onBulkDeleteSubfolders}
+          onBulkMoveToHdd={onBulkMoveSubfoldersToHdd}
+          onBulkMoveToParent={onBulkMoveSubfoldersToParent}
         />
       )}
 
@@ -405,6 +420,9 @@ export const StorageManagementCard: React.FC<StorageManagementCardProps> = ({
           folders={folders}
           drives={drives}
           onOpenFolder={onOpenFolder}
+          onDeleteFolder={onDeleteFolder}
+          onBulkDelete={onBulkDeleteFolders}
+          onBulkMoveToHdd={onBulkMoveFoldersToHdd}
         />
       )}
 

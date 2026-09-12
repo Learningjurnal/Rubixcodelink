@@ -1305,6 +1305,185 @@ export default function App() {
     addToast('info', 'Subfolder berhasil dihapus.');
   };
 
+  // --- Bulk subfolder operations -------------------------------------------
+  // Subfolders live nested inside their parent folder's `subfolders` array,
+  // so multiple selected items can share the same parent. Each of these
+  // groups selection by parent and computes ONE final array per parent from
+  // a single fresh read of `folders`, then issues one Supabase update per
+  // affected parent — looping the single-item handlers instead would have
+  // each call read the same stale `folders` snapshot and silently overwrite
+  // a sibling call's change to the same parent.
+
+  const handleBulkDeleteSubfolders = async (items: { parentFolderId: string; subfolderId: string }[]) => {
+    if (!currentUser || items.length === 0) return;
+
+    const byParent = new Map<string, Set<string>>();
+    items.forEach(({ parentFolderId, subfolderId }) => {
+      if (!byParent.has(parentFolderId)) byParent.set(parentFolderId, new Set());
+      byParent.get(parentFolderId)!.add(subfolderId);
+    });
+
+    let totalDeleted = 0;
+    const patches: { folderId: string; subfolders: StorageSubfolder[]; foldersCount: number }[] = [];
+    byParent.forEach((subIds, parentId) => {
+      const parent = folders.find(f => f.id === parentId);
+      if (!parent) return;
+      const kept = (parent.subfolders || []).filter(s => !s.id || !subIds.has(s.id));
+      totalDeleted += (parent.subfolders?.length || 0) - kept.length;
+      patches.push({ folderId: parentId, subfolders: kept, foldersCount: kept.length });
+    });
+
+    try {
+      for (const p of patches) {
+        await updateUserFolderInFirestore(currentUser.uid, p.folderId, { subfolders: p.subfolders, foldersCount: p.foldersCount });
+      }
+      setFolders(prev =>
+        prev.map(f => {
+          const p = patches.find(x => x.folderId === f.id);
+          return p ? { ...f, subfolders: p.subfolders, foldersCount: p.foldersCount } : f;
+        })
+      );
+      addToast('info', `${totalDeleted} subfolder berhasil dihapus dari database.`);
+    } catch (e: any) {
+      console.error(e);
+      addToast('error', `Gagal menghapus sebagian/semua subfolder: ${e?.message || 'periksa koneksi/sesi login Anda.'}`);
+    }
+  };
+
+  const handleBulkMoveSubfoldersToHdd = async (
+    items: { parentFolderId: string; subfolderId: string }[],
+    targetHddId: string,
+    targetHddName?: string
+  ) => {
+    if (!currentUser || items.length === 0) return;
+
+    const byParent = new Map<string, Set<string>>();
+    items.forEach(({ parentFolderId, subfolderId }) => {
+      if (!byParent.has(parentFolderId)) byParent.set(parentFolderId, new Set());
+      byParent.get(parentFolderId)!.add(subfolderId);
+    });
+
+    const patches: { folderId: string; subfolders: StorageSubfolder[] }[] = [];
+    byParent.forEach((subIds, parentId) => {
+      const parent = folders.find(f => f.id === parentId);
+      if (!parent) return;
+      const updated = (parent.subfolders || []).map(s => (s.id && subIds.has(s.id) ? { ...s, hddId: targetHddId } : s));
+      patches.push({ folderId: parentId, subfolders: updated });
+    });
+
+    try {
+      for (const p of patches) {
+        await updateUserFolderInFirestore(currentUser.uid, p.folderId, { subfolders: p.subfolders });
+      }
+      setFolders(prev =>
+        prev.map(f => {
+          const p = patches.find(x => x.folderId === f.id);
+          return p ? { ...f, subfolders: p.subfolders } : f;
+        })
+      );
+      addToast('success', `${items.length} subfolder berhasil dipindahkan ke ${targetHddName || 'HDD baru'}.`);
+    } catch (e: any) {
+      console.error(e);
+      addToast('error', `Gagal memindahkan subfolder ke HDD baru: ${e?.message || 'periksa koneksi/sesi login Anda.'}`);
+    }
+  };
+
+  const handleBulkMoveSubfoldersToParent = async (
+    items: { parentFolderId: string; subfolderId: string }[],
+    targetParentId: string
+  ) => {
+    if (!currentUser || items.length === 0) return;
+
+    const targetFolder = folders.find(f => f.id === targetParentId);
+    if (!targetFolder) {
+      addToast('error', 'Folder tujuan tidak ditemukan.');
+      return;
+    }
+
+    const relevantItems = items.filter(i => i.parentFolderId !== targetParentId);
+    if (relevantItems.length === 0) {
+      addToast('info', 'Subfolder terpilih sudah berada di folder tujuan.');
+      return;
+    }
+
+    const byOldParent = new Map<string, Set<string>>();
+    relevantItems.forEach(({ parentFolderId, subfolderId }) => {
+      if (!byOldParent.has(parentFolderId)) byOldParent.set(parentFolderId, new Set());
+      byOldParent.get(parentFolderId)!.add(subfolderId);
+    });
+
+    const movedSubfolders: StorageSubfolder[] = [];
+    const oldPatches: { folderId: string; subfolders: StorageSubfolder[]; foldersCount: number }[] = [];
+    byOldParent.forEach((subIds, parentId) => {
+      const parent = folders.find(f => f.id === parentId);
+      if (!parent) return;
+      const kept = (parent.subfolders || []).filter(s => !s.id || !subIds.has(s.id));
+      const moved = (parent.subfolders || []).filter(s => s.id && subIds.has(s.id));
+      movedSubfolders.push(...moved);
+      oldPatches.push({ folderId: parentId, subfolders: kept, foldersCount: kept.length });
+    });
+
+    const newTargetSubfolders = [...(targetFolder.subfolders || []), ...movedSubfolders];
+
+    try {
+      for (const p of oldPatches) {
+        await updateUserFolderInFirestore(currentUser.uid, p.folderId, { subfolders: p.subfolders, foldersCount: p.foldersCount });
+      }
+      await updateUserFolderInFirestore(currentUser.uid, targetParentId, {
+        subfolders: newTargetSubfolders,
+        foldersCount: newTargetSubfolders.length,
+      });
+
+      setFolders(prev =>
+        prev.map(f => {
+          if (f.id === targetParentId) {
+            return { ...f, subfolders: newTargetSubfolders, foldersCount: newTargetSubfolders.length };
+          }
+          const p = oldPatches.find(x => x.folderId === f.id);
+          return p ? { ...f, subfolders: p.subfolders, foldersCount: p.foldersCount } : f;
+        })
+      );
+
+      addToast('success', `${movedSubfolders.length} subfolder berhasil dipindahkan ke "${targetFolder.name}".`);
+    } catch (e: any) {
+      console.error(e);
+      addToast('error', `Gagal memindahkan subfolder ke folder baru: ${e?.message || 'periksa koneksi/sesi login Anda.'}`);
+    }
+  };
+
+  // --- Bulk top-level folder operations -------------------------------------
+  // Each folder is its own row, so no shared-parent race to worry about here.
+
+  const handleBulkDeleteFolders = async (folderIds: string[]) => {
+    if (!currentUser || folderIds.length === 0) return;
+    try {
+      for (const id of folderIds) {
+        await deleteUserFolderFromFirestore(currentUser.uid, id);
+      }
+      setFolders(prev => prev.filter(f => !folderIds.includes(f.id)));
+      addToast('info', `${folderIds.length} folder berhasil dihapus dari penyimpanan.`);
+    } catch (e: any) {
+      console.error(e);
+      addToast('error', `Gagal menghapus sebagian/semua folder: ${e?.message || 'periksa koneksi/sesi login Anda.'}`);
+    }
+  };
+
+  const handleBulkMoveFoldersToHdd = async (folderIds: string[], targetHddId: string, targetHddName?: string) => {
+    if (!currentUser || folderIds.length === 0) return;
+    try {
+      for (const id of folderIds) {
+        await updateUserFolderInFirestore(currentUser.uid, id, { hddId: targetHddId, hddName: targetHddName });
+      }
+      setFolders(prev =>
+        prev.map(f => (folderIds.includes(f.id) ? { ...f, hddId: targetHddId, hddName: targetHddName } : f))
+      );
+      addToast('success', `${folderIds.length} folder berhasil dipindahkan ke ${targetHddName || 'HDD baru'}.`);
+    } catch (e: any) {
+      console.error(e);
+      addToast('error', `Gagal memindahkan folder ke HDD baru: ${e?.message || 'periksa koneksi/sesi login Anda.'}`);
+    }
+  };
+
   const handleAddFileToSubfolder = async (parentFolderId: string, subfolderId: string, newFile: Omit<StorageFile, 'id'>) => {
     const parent = folders.find(f => f.id === parentFolderId);
     if (!parent) return;
@@ -1813,6 +1992,12 @@ export default function App() {
             onOpenSubfolder={handleOpenSubfolder}
             onUpdateSubfolder={handleUpdateSubfolder}
             onDeleteSubfolder={handleDeleteSubfolder}
+            onBulkDeleteSubfolders={handleBulkDeleteSubfolders}
+            onBulkMoveSubfoldersToHdd={handleBulkMoveSubfoldersToHdd}
+            onBulkMoveSubfoldersToParent={handleBulkMoveSubfoldersToParent}
+            onDeleteFolder={handleDeleteFolder}
+            onBulkDeleteFolders={handleBulkDeleteFolders}
+            onBulkMoveFoldersToHdd={handleBulkMoveFoldersToHdd}
             onOpenNewFolderModal={() => setIsNewFolderModalOpen(true)}
             onSaveDrives={handleSaveDrives}
             onAddCustomFolder={handleAddCustomFolder}

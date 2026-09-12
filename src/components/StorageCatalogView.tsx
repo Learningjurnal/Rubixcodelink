@@ -7,10 +7,11 @@ import {
   ArrowUpRight,
   LayoutGrid,
   Table as TableIcon,
-  Image as ImageIcon,
-  Tag,
-  Layers,
-  FileText,
+  Trash2,
+  Move,
+  Check,
+  X,
+  CheckSquare,
 } from 'lucide-react';
 import { StorageFolder, HardDriveProfile } from '../types';
 import { formatBytes } from '../utils/storageExcelHelper';
@@ -19,16 +20,25 @@ interface StorageCatalogViewProps {
   folders: StorageFolder[];
   drives: HardDriveProfile[];
   onOpenFolder: (folder: StorageFolder) => void;
+  onDeleteFolder: (folderId: string) => void;
+  onBulkDelete: (folderIds: string[]) => void;
+  onBulkMoveToHdd: (folderIds: string[], targetHddId: string, targetHddName?: string) => void;
 }
 
 export const StorageCatalogView: React.FC<StorageCatalogViewProps> = ({
   folders,
   drives,
   onOpenFolder,
+  onDeleteFolder,
+  onBulkDelete,
+  onBulkMoveToHdd,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<'name-asc' | 'name-desc' | 'size-desc' | 'size-asc'>('name-asc');
   const [viewMode, setViewMode] = useState<'table' | 'catalog'>('table');
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [isMoveModalOpen, setIsMoveModalOpen] = useState(false);
+  const [moveTargetHddId, setMoveTargetHddId] = useState('');
 
   // Filter and sort folders
   const processedFolders = useMemo(() => {
@@ -66,6 +76,45 @@ export const StorageCatalogView: React.FC<StorageCatalogViewProps> = ({
 
     return result;
   }, [folders, searchQuery, sortBy]);
+
+  const allSelected = processedFolders.length > 0 && processedFolders.every(f => selectedIds.has(f.id));
+
+  const toggleSelectAll = () => {
+    if (allSelected) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(processedFolders.map(f => f.id)));
+    }
+  };
+
+  const toggleSelectOne = (id: string, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const clearSelection = () => setSelectedIds(new Set());
+
+  const handleBulkDeleteClick = () => {
+    if (selectedIds.size === 0) return;
+    if (window.confirm(`Hapus ${selectedIds.size} folder terpilih beserta seluruh subfolder & berkas di dalamnya? Tindakan ini tidak dapat dibatalkan.`)) {
+      onBulkDelete(Array.from(selectedIds));
+      clearSelection();
+    }
+  };
+
+  const handleConfirmBulkMove = () => {
+    if (!moveTargetHddId) return;
+    const targetDrive = drives.find(d => d.id === moveTargetHddId);
+    onBulkMoveToHdd(Array.from(selectedIds), moveTargetHddId, targetDrive?.name);
+    setIsMoveModalOpen(false);
+    setMoveTargetHddId('');
+    clearSelection();
+  };
 
   return (
     <div className="space-y-4 animate-fade-in">
@@ -134,11 +183,45 @@ export const StorageCatalogView: React.FC<StorageCatalogViewProps> = ({
         </div>
       </div>
 
-      {/* Results summary */}
-      <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 px-1">
-        <span>Menampilkan <strong className="text-slate-900 dark:text-slate-100">{processedFolders.length}</strong> folder rekap</span>
-        <span>Format Katalog [Foto] - [Nama Folder] - [Ukuran] - [Lokasi Penyimpanan]</span>
-      </div>
+      {/* Results summary / Bulk Action Toolbar */}
+      {selectedIds.size > 0 ? (
+        <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 bg-indigo-600 rounded-2xl shadow-md shadow-indigo-200/60 dark:shadow-none animate-fade-in">
+          <div className="flex items-center gap-2 text-white text-xs font-bold">
+            <CheckSquare className="w-4 h-4" />
+            <span>{selectedIds.size} folder dipilih</span>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setIsMoveModalOpen(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white/15 hover:bg-white/25 text-white rounded-xl text-xs font-bold transition cursor-pointer"
+            >
+              <Move className="w-3.5 h-3.5" />
+              <span>Pindah HDD</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleBulkDeleteClick}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-rose-500 hover:bg-rose-600 text-white rounded-xl text-xs font-bold transition cursor-pointer"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>Hapus ({selectedIds.size})</span>
+            </button>
+            <button
+              type="button"
+              onClick={clearSelection}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold transition cursor-pointer"
+              title="Batalkan pilihan"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 px-1">
+          <span>Menampilkan <strong className="text-slate-900 dark:text-slate-100">{processedFolders.length}</strong> folder rekap</span>
+        </div>
+      )}
 
       {/* Empty State */}
       {processedFolders.length === 0 ? (
@@ -154,11 +237,20 @@ export const StorageCatalogView: React.FC<StorageCatalogViewProps> = ({
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-slate-50 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-700 text-[11px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider">
-                  <th className="py-3.5 px-4 w-16 text-center">[Foto]</th>
-                  <th className="py-3.5 px-4">[Nama Folder & Deskripsi]</th>
-                  <th className="py-3.5 px-4 w-32">[Ukuran]</th>
-                  <th className="py-3.5 px-4">[Lokasi Penyimpanan]</th>
-                  <th className="py-3.5 px-4 w-24 text-center">Aksi</th>
+                  <th className="py-3.5 px-4 w-12 text-center">
+                    <input
+                      type="checkbox"
+                      checked={allSelected}
+                      onChange={toggleSelectAll}
+                      onClick={e => e.stopPropagation()}
+                      className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 w-4 h-4"
+                    />
+                  </th>
+                  <th className="py-3.5 px-4 w-16 text-center">Foto</th>
+                  <th className="py-3.5 px-4 text-center">Nama Folder &amp; Deskripsi</th>
+                  <th className="py-3.5 px-4 w-32 text-center">Ukuran</th>
+                  <th className="py-3.5 px-4 text-center">Lokasi Penyimpanan</th>
+                  <th className="py-3.5 px-4 w-28 text-center">Aksi</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-xs">
@@ -167,13 +259,26 @@ export const StorageCatalogView: React.FC<StorageCatalogViewProps> = ({
                   const filecount = folder.filesCount || 0;
                   const sizeFormatted = folder.usedStorageFormatted || formatBytes(folder.usedBytes);
 
+                  const isSelected = selectedIds.has(folder.id);
+
                   return (
                     <tr
                       key={folder.id}
                       onClick={() => onOpenFolder(folder)}
-                      className="hover:bg-indigo-50/50 dark:hover:bg-indigo-950/20 transition cursor-pointer group"
+                      className={`hover:bg-indigo-50/50 dark:hover:bg-indigo-950/20 transition cursor-pointer group ${
+                        isSelected ? 'bg-indigo-50/70 dark:bg-indigo-950/40' : ''
+                      }`}
                     >
-                      {/* [Foto] */}
+                      <td className="py-3 px-4 text-center">
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => {}}
+                          onClick={e => toggleSelectOne(folder.id, e)}
+                          className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 w-4 h-4"
+                        />
+                      </td>
+                      {/* Foto */}
                       <td className="py-3 px-4 text-center">
                         <div className="w-12 h-12 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 overflow-hidden flex items-center justify-center shrink-0 mx-auto shadow-2xs">
                           {folder.sampleImageUrl && !folder.sampleImageHidden ? (
@@ -236,17 +341,32 @@ export const StorageCatalogView: React.FC<StorageCatalogViewProps> = ({
 
                       {/* Aksi */}
                       <td className="py-3 px-4 text-center">
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onOpenFolder(folder);
-                          }}
-                          className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-xs transition flex items-center justify-center gap-1 mx-auto"
-                        >
-                          <span>Buka</span>
-                          <ArrowUpRight className="w-3.5 h-3.5" />
-                        </button>
+                        <div className="flex items-center justify-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onOpenFolder(folder);
+                            }}
+                            className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-xs transition flex items-center justify-center gap-1"
+                          >
+                            <span>Buka</span>
+                            <ArrowUpRight className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={e => {
+                              e.stopPropagation();
+                              if (window.confirm(`Hapus folder "${folder.name}" beserta seluruh subfolder & berkas di dalamnya?`)) {
+                                onDeleteFolder(folder.id);
+                              }
+                            }}
+                            className="p-1.5 bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 hover:bg-rose-100 rounded-lg transition"
+                            title="Hapus Folder"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -262,15 +382,18 @@ export const StorageCatalogView: React.FC<StorageCatalogViewProps> = ({
             const subcount = folder.subfolders?.length || folder.foldersCount || 0;
             const filecount = folder.filesCount || 0;
             const sizeFormatted = folder.usedStorageFormatted || formatBytes(folder.usedBytes);
+            const isSelected = selectedIds.has(folder.id);
 
             return (
               <div
                 key={folder.id}
                 onClick={() => onOpenFolder(folder)}
-                className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/90 dark:border-slate-800 p-4 shadow-xs hover:shadow-xl transition duration-300 flex flex-col justify-between cursor-pointer group"
+                className={`bg-white dark:bg-slate-900 rounded-3xl border p-4 shadow-xs hover:shadow-xl transition duration-300 flex flex-col justify-between cursor-pointer group ${
+                  isSelected ? 'border-indigo-500 ring-2 ring-indigo-200 dark:ring-indigo-900' : 'border-slate-200/90 dark:border-slate-800'
+                }`}
               >
                 <div>
-                  {/* [Foto] Thumbnail Banner */}
+                  {/* Foto Thumbnail Banner */}
                   <div className="relative w-full h-44 rounded-2xl bg-slate-900 overflow-hidden border border-slate-200 dark:border-slate-800 mb-3.5">
                     {folder.sampleImageUrl && !folder.sampleImageHidden ? (
                       <img
@@ -284,11 +407,23 @@ export const StorageCatalogView: React.FC<StorageCatalogViewProps> = ({
                         <Folder className="w-12 h-12" />
                       </div>
                     )}
-                    <div className="absolute top-3 left-3 bg-black/70 backdrop-blur-xs text-white text-[10px] font-bold px-2.5 py-1 rounded-xl flex items-center gap-1 shadow-xs">
-                      <span>{folder.hddName?.split('-')[0] || 'HDD 1'}</span>
-                    </div>
+                    <button
+                      type="button"
+                      onClick={e => toggleSelectOne(folder.id, e)}
+                      className={`absolute top-3 left-3 w-6 h-6 rounded-lg border-2 flex items-center justify-center transition shadow-xs cursor-pointer ${
+                        isSelected
+                          ? 'bg-indigo-600 border-indigo-600 text-white'
+                          : 'bg-black/40 backdrop-blur-xs border-white/70 text-transparent hover:bg-black/60'
+                      }`}
+                      title={isSelected ? 'Batalkan pilih' : 'Pilih folder'}
+                    >
+                      <Check className="w-4 h-4" />
+                    </button>
                     <div className="absolute top-3 right-3 bg-indigo-600 text-white text-[10px] font-bold px-2.5 py-1 rounded-xl shadow-xs">
                       {sizeFormatted}
+                    </div>
+                    <div className="absolute bottom-3 left-3 bg-black/70 backdrop-blur-xs text-white text-[10px] font-bold px-2.5 py-1 rounded-xl flex items-center gap-1 shadow-xs">
+                      <span>{folder.hddName?.split('-')[0] || 'HDD 1'}</span>
                     </div>
                   </div>
 
@@ -333,6 +468,68 @@ export const StorageCatalogView: React.FC<StorageCatalogViewProps> = ({
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* BULK MOVE TO HDD MODAL */}
+      {isMoveModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-md w-full p-6 border border-slate-200 dark:border-slate-800 shadow-2xl space-y-4 animate-scale-up">
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                <HardDrive className="w-5 h-5 text-indigo-600" />
+                <span>Pindah ke HDD Lain</span>
+              </h3>
+              <button
+                type="button"
+                onClick={() => setIsMoveModalOpen(false)}
+                className="p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              {selectedIds.size} folder terpilih akan dipindahkan ke HDD tujuan.
+            </p>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">
+                HDD Tujuan
+              </label>
+              <select
+                value={moveTargetHddId}
+                onChange={e => setMoveTargetHddId(e.target.value)}
+                className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold outline-none focus:ring-2 focus:ring-indigo-600"
+              >
+                <option value="">— Pilih HDD tujuan —</option>
+                {drives.map(d => (
+                  <option key={d.id} value={d.id}>
+                    {d.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
+              <button
+                type="button"
+                onClick={() => setIsMoveModalOpen(false)}
+                className="px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                disabled={!moveTargetHddId}
+                onClick={handleConfirmBulkMove}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl text-xs font-bold shadow-xs flex items-center gap-1.5"
+              >
+                <Check className="w-3.5 h-3.5" />
+                <span>Pindahkan Sekarang</span>
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
