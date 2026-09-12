@@ -93,9 +93,16 @@ export const BatchActionsBar: React.FC<BatchActionsBarProps> = ({
   ).slice(0, 10);
 
   return (
+    // `fixed`, not `sticky`: a sticky element still reserves its height in
+    // normal document flow while scrolled past, so this bar appearing and
+    // disappearing (mount/unmount above) was pushing LinkTable's rows up
+    // and down every time the selection count crossed 0. A click aimed at
+    // one row could then land on whatever row shifted into that same
+    // screen position. `fixed` takes the bar out of the flow entirely, so
+    // selecting/deselecting rows never moves anything else on the page.
     <div
       id="batch-actions-floating-bar"
-      className="sticky top-20 z-30 mb-5 p-3.5 bg-slate-900/95 backdrop-blur-md text-white rounded-2xl shadow-xl border border-slate-700/60 flex flex-wrap items-center justify-between gap-3"
+      className="fixed bottom-4 sm:bottom-6 left-1/2 -translate-x-1/2 z-40 w-[calc(100%-2rem)] max-w-4xl p-3.5 bg-slate-900/95 backdrop-blur-md text-white rounded-2xl shadow-2xl border border-slate-700/60 flex flex-wrap items-center justify-between gap-3"
     >
       <div className="flex items-center gap-2.5">
         <span className="bg-indigo-600 text-white px-2.5 py-0.5 rounded-full text-xs font-bold shadow-xs">

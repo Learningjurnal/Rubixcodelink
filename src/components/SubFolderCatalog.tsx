@@ -320,9 +320,25 @@ export const SubFolderCatalog: React.FC<SubFolderCatalogProps> = ({
         </div>
       </div>
 
-      {/* Summary status / Bulk Action Toolbar */}
-      {selectedIds.size > 0 ? (
-        <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 bg-indigo-600 rounded-2xl shadow-md shadow-indigo-200/60 dark:shadow-none animate-fade-in">
+      {/* Summary status — always in normal document flow, at a constant
+          height, regardless of selection state. The bulk action toolbar
+          below is a fixed-position overlay instead of an in-flow sibling
+          that used to swap in/out here: when it appeared/disappeared it
+          changed this section's height and pushed the entire table up or
+          down by roughly one row, so a second click aimed at "row 2" could
+          land on what had shifted into "row 1"'s place (and, on the row
+          just below the toolbar, could miss the Aksi Operasional buttons
+          entirely). A fixed overlay can never do that — it doesn't
+          participate in page layout at all. */}
+      <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 px-1">
+        <span>
+          Total Subfolder: <strong className="text-slate-900 dark:text-slate-100">{totalItems.toLocaleString()}</strong> item (Mendukung performa 8,000+ data)
+        </span>
+      </div>
+
+      {/* Bulk Action Toolbar — fixed overlay, does not affect table layout */}
+      {selectedIds.size > 0 && (
+        <div className="fixed bottom-4 sm:bottom-6 left-1/2 -translate-x-1/2 z-40 w-[calc(100%-2rem)] max-w-2xl flex flex-wrap items-center justify-between gap-3 px-4 py-3 bg-indigo-600 rounded-2xl shadow-2xl shadow-indigo-900/40 animate-fade-in">
           <div className="flex items-center gap-2 text-white text-xs font-bold">
             <CheckSquare className="w-4 h-4" />
             <span>{selectedIds.size} subfolder dipilih</span>
@@ -361,12 +377,6 @@ export const SubFolderCatalog: React.FC<SubFolderCatalogProps> = ({
               <X className="w-3.5 h-3.5" />
             </button>
           </div>
-        </div>
-      ) : (
-        <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 px-1">
-          <span>
-            Total Subfolder: <strong className="text-slate-900 dark:text-slate-100">{totalItems.toLocaleString()}</strong> item (Mendukung performa 8,000+ data)
-          </span>
         </div>
       )}
 
