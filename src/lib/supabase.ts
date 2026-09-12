@@ -82,12 +82,32 @@ function mapSupabaseAuthError(error: { message?: string; status?: number } | nul
 export async function signInWithEmailAndPassword(_authIgnored: unknown, email: string, password: string) {
   const { data, error } = await supabase.auth.signInWithPassword({ email, password });
   if (error) throw mapSupabaseAuthError(error);
+  if (!data.session) {
+    // Should not happen for signInWithPassword (it always returns a
+    // session on success), but guard anyway: a "successful" call with no
+    // real session means every subsequent Supabase read/write will be
+    // silently rejected by RLS. Surface it instead of pretending to log in.
+    throw mapSupabaseAuthError({ message: 'Login gagal: tidak ada sesi yang terbentuk.' });
+  }
   return { user: toAppUser(data.user) as User };
 }
 
 export async function createUserWithEmailAndPassword(_authIgnored: unknown, email: string, password: string) {
   const { data, error } = await supabase.auth.signUp({ email, password });
   if (error) throw mapSupabaseAuthError(error);
+  // Supabase returns `session: null` (with no `error`) when signing up an
+  // email that is already registered — a deliberate anti-enumeration
+  // response, not a real new account. Treating that as success would let
+  // the UI show "logged in" while every DB write silently fails RLS
+  // (no real auth.uid()), invisible until the user notices nothing
+  // persists. Surface it as "email already in use" instead.
+  if (!data.session) {
+    const err = new Error('Email ini sudah terdaftar, atau pendaftaran akun baru sedang dinonaktifkan.') as Error & {
+      code: string;
+    };
+    err.code = 'auth/email-already-in-use';
+    throw err;
+  }
   return { user: toAppUser(data.user) as User };
 }
 
