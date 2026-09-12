@@ -1226,8 +1226,8 @@ export default function App() {
     }
   };
 
-  const handleUpdateFolder = async (folderId: string, updatedFields: Partial<StorageFolder>) => {
-    if (!currentUser) return;
+  const handleUpdateFolder = async (folderId: string, updatedFields: Partial<StorageFolder>): Promise<boolean> => {
+    if (!currentUser) return false;
     try {
       await updateUserFolderInFirestore(currentUser.uid, folderId, updatedFields);
       setFolders(prev => prev.map(f => (f.id === folderId ? { ...f, ...updatedFields } : f)));
@@ -1235,13 +1235,21 @@ export default function App() {
         setSelectedFolderForDetail(prev => (prev ? { ...prev, ...updatedFields } : null));
       }
       addToast('success', 'Folder berhasil diperbarui.');
+      return true;
     } catch (e: any) {
+      // Previously this fell back to applying the change to local state
+      // ONLY and still showed a (misleadingly worded) success toast — the
+      // exact same class of bug fixed everywhere else in this app: the row
+      // (or, via this function, a subfolder delete/move) visibly vanished
+      // from the table, the user saw what looked like a success message,
+      // and then it reappeared on the next refetch because the database
+      // write never actually happened. Surface the real failure instead —
+      // this is every subfolder/folder mutation's shared write path
+      // (rename, edit, delete, bulk move all route through here), so this
+      // one fix covers all of them.
       console.error(e);
-      setFolders(prev => prev.map(f => (f.id === folderId ? { ...f, ...updatedFields } : f)));
-      if (selectedFolderForDetail && selectedFolderForDetail.id === folderId) {
-        setSelectedFolderForDetail(prev => (prev ? { ...prev, ...updatedFields } : null));
-      }
-      addToast('success', 'Folder diperbarui secara lokal.');
+      addToast('error', `Gagal memperbarui folder: ${e?.message || 'periksa koneksi/sesi login Anda.'}`);
+      return false;
     }
   };
 
@@ -1262,11 +1270,15 @@ export default function App() {
     };
 
     const updatedSubfolders = [...(parent.subfolders || []), fullSub];
-    await handleUpdateFolder(parentFolderId, {
+    const ok = await handleUpdateFolder(parentFolderId, {
       subfolders: updatedSubfolders,
       foldersCount: updatedSubfolders.length,
     });
-    addToast('success', `Subfolder "${newSubfolder.name}" berhasil ditambahkan.`);
+    // handleUpdateFolder already surfaced its own error toast on failure —
+    // only announce this specific "added" outcome when the write actually
+    // went through, otherwise the user sees a success message right after
+    // (or even instead of, depending on toast timing) the error one.
+    if (ok) addToast('success', `Subfolder "${newSubfolder.name}" berhasil ditambahkan.`);
   };
 
   const handleUpdateSubfolder = async (parentFolderId: string, subfolderId: string, updatedFields: Partial<StorageSubfolder>) => {
@@ -1277,9 +1289,10 @@ export default function App() {
       sub.id === subfolderId ? { ...sub, ...updatedFields } : sub
     );
 
-    await handleUpdateFolder(parentFolderId, {
+    const ok = await handleUpdateFolder(parentFolderId, {
       subfolders: updatedSubfolders,
     });
+    if (!ok) return;
 
     if (selectedSubfolderForDetail && selectedSubfolderForDetail.id === subfolderId) {
       setSelectedSubfolderForDetail(prev => (prev ? { ...prev, ...updatedFields } : null));
@@ -1299,13 +1312,21 @@ export default function App() {
     const newUsedBytes = Math.max(0, (parent.usedBytes || 0) - subBytes);
     const newFilesCount = Math.max(0, (parent.filesCount || 0) - subFiles.length);
 
-    await handleUpdateFolder(parentFolderId, {
+    const ok = await handleUpdateFolder(parentFolderId, {
       subfolders: updatedSubfolders,
       foldersCount: updatedSubfolders.length,
       filesCount: newFilesCount,
       usedBytes: newUsedBytes,
       usedStorageFormatted: `${(newUsedBytes / (1024 * 1024 * 1024)).toFixed(1)} GB`,
     });
+    // Previously this ran unconditionally — the "berhasil dihapus" toast
+    // and modal close fired even when the underlying database write had
+    // failed, which is exactly how a delete could look like it worked
+    // (row vanishes from local state, confident success toast) while the
+    // row was actually untouched server-side and came back on the next
+    // refetch. Only announce/close now when handleUpdateFolder confirms
+    // the write actually happened.
+    if (!ok) return;
 
     setIsSubfolderDetailModalOpen(false);
     setSelectedSubfolderForDetail(null);
@@ -1518,12 +1539,13 @@ export default function App() {
     const totalFiles = updatedSubfolders.reduce((acc, s) => acc + (s.files?.length || 0), 0);
     const totalBytes = updatedSubfolders.reduce((acc, s) => acc + (s.sizeBytes || 0), 0);
 
-    await handleUpdateFolder(parentFolderId, {
+    const ok = await handleUpdateFolder(parentFolderId, {
       subfolders: updatedSubfolders,
       filesCount: totalFiles,
       usedBytes: totalBytes,
       usedStorageFormatted: `${(totalBytes / (1024 * 1024 * 1024)).toFixed(1)} GB`,
     });
+    if (!ok) return;
 
     if (selectedSubfolderForDetail && selectedSubfolderForDetail.id === subfolderId) {
       const updatedSub = updatedSubfolders.find(s => s.id === subfolderId);
@@ -1557,12 +1579,13 @@ export default function App() {
     const totalFiles = updatedSubfolders.reduce((acc, s) => acc + (s.files?.length || 0), 0);
     const totalBytes = updatedSubfolders.reduce((acc, s) => acc + (s.sizeBytes || 0), 0);
 
-    await handleUpdateFolder(parentFolderId, {
+    const ok = await handleUpdateFolder(parentFolderId, {
       subfolders: updatedSubfolders,
       filesCount: totalFiles,
       usedBytes: totalBytes,
       usedStorageFormatted: `${(totalBytes / (1024 * 1024 * 1024)).toFixed(1)} GB`,
     });
+    if (!ok) return;
 
     if (selectedSubfolderForDetail && selectedSubfolderForDetail.id === subfolderId) {
       const updatedSub = updatedSubfolders.find(s => s.id === subfolderId);
