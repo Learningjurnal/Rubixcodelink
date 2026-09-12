@@ -469,6 +469,58 @@ export async function addUserFolderToFirestore(userId: string, folder: Omit<Stor
   return data.id;
 }
 
+/**
+ * Bulk-insert folders (e.g. from the HDD scanner Excel import). Each
+ * folder's NOT NULL columns are defaulted the same way as
+ * addUserFolderToFirestore.
+ */
+export async function batchAddUserFoldersToFirestore(
+  userId: string,
+  folders: Omit<StorageFolder, 'id'>[]
+): Promise<number> {
+  if (folders.length === 0) return 0;
+  const CHUNK_SIZE = 200;
+  let totalSaved = 0;
+
+  for (let i = 0; i < folders.length; i += CHUNK_SIZE) {
+    const chunk = folders.slice(i, i + CHUNK_SIZE).map(folder => ({
+      user_id: userId,
+      name: folder.name || 'Untitled Folder',
+      description: folder.description || '',
+      theme_color: folder.themeColor || 'blue',
+      used_storage_formatted: folder.usedStorageFormatted || '0MB',
+      total_capacity_formatted: folder.totalCapacityFormatted || '1GB',
+      used_bytes: folder.usedBytes ?? 0,
+      capacity_bytes: folder.capacityBytes ?? 1024 * 1024 * 1024,
+      files_count: folder.filesCount ?? 0,
+      folders_count: folder.foldersCount ?? 0,
+      shared_count: folder.sharedCount ?? 0,
+      tags: folder.tags || [],
+      owner_name: folder.ownerName || 'Saya',
+      owner_avatar: folder.ownerAvatar || null,
+      created_at: folder.createdAt || new Date().toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' }),
+      files: folder.files || [],
+      updated_at: Date.now(),
+    }));
+    const { error } = await supabase.from('user_folders').insert(chunk);
+    if (error) throw error;
+    totalSaved += chunk.length;
+  }
+  return totalSaved;
+}
+
+/**
+ * Deletes every folder owned by this user. Used before a full Excel
+ * manifest re-import, which replaces the entire folder set rather than
+ * merging into it (matching the existing local-state behavior in
+ * handleImportExcelComplete).
+ */
+export async function clearAllUserFoldersFromFirestore(userId: string): Promise<number> {
+  const { data, error } = await supabase.from('user_folders').delete().eq('user_id', userId).select('id');
+  if (error) throw error;
+  return data?.length || 0;
+}
+
 export async function updateUserFolderInFirestore(
   userId: string,
   folderId: string,
