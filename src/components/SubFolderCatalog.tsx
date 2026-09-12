@@ -8,17 +8,17 @@ import {
   LayoutGrid,
   Table as TableIcon,
   ListFilter,
-  SlidersHorizontal,
   Edit2,
   Trash2,
   Move,
+  FolderInput,
   Check,
   X,
   AlertTriangle,
   ChevronLeft,
   ChevronRight,
-  Maximize2,
   ExternalLink,
+  CheckSquare,
 } from 'lucide-react';
 import { StorageFolder, StorageSubfolder, HardDriveProfile } from '../types';
 import { formatBytes } from '../utils/storageExcelHelper';
@@ -33,6 +33,9 @@ interface SubFolderCatalogProps {
   onOpenSubfolder: (subfolder: StorageSubfolder, parentFolder: StorageFolder) => void;
   onUpdateSubfolder: (parentFolderId: string, subfolderId: string, updatedFields: Partial<StorageSubfolder>) => void;
   onDeleteSubfolder: (parentFolderId: string, subfolderId: string) => void;
+  onBulkDelete: (items: { parentFolderId: string; subfolderId: string }[]) => void;
+  onBulkMoveToHdd: (items: { parentFolderId: string; subfolderId: string }[], targetHddId: string, targetHddName?: string) => void;
+  onBulkMoveToParent: (items: { parentFolderId: string; subfolderId: string }[], targetParentId: string) => void;
 }
 
 export const SubFolderCatalog: React.FC<SubFolderCatalogProps> = ({
@@ -41,6 +44,9 @@ export const SubFolderCatalog: React.FC<SubFolderCatalogProps> = ({
   onOpenSubfolder,
   onUpdateSubfolder,
   onDeleteSubfolder,
+  onBulkDelete,
+  onBulkMoveToHdd,
+  onBulkMoveToParent,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<'size-desc' | 'size-asc' | 'name-asc' | 'name-desc' | 'files-desc'>('size-desc');
@@ -55,9 +61,9 @@ export const SubFolderCatalog: React.FC<SubFolderCatalogProps> = ({
   const [editDesc, setEditDesc] = useState('');
   const [editImgUrl, setEditImgUrl] = useState('');
 
-  // Move Subfolder Modal State
-  const [movingItem, setMovingItem] = useState<FlatSubfolderItem | null>(null);
-  const [targetParentId, setTargetParentId] = useState('');
+  // Bulk Move Modal State (either move to a different parent folder, or a different HDD)
+  const [bulkMoveMode, setBulkMoveMode] = useState<'parent' | 'hdd' | null>(null);
+  const [bulkMoveTargetId, setBulkMoveTargetId] = useState('');
 
   // Flatten all subfolders
   const allSubfolders = useMemo(() => {
@@ -154,6 +160,43 @@ export const SubFolderCatalog: React.FC<SubFolderCatalogProps> = ({
     setEditingItem(null);
   };
 
+  // Resolve the current selection into {parentFolderId, subfolderId} pairs
+  // for the bulk handlers, which need the parent to locate each subfolder.
+  const getSelectedPayload = () =>
+    allSubfolders
+      .filter(s => selectedIds.has(s.id || s.name))
+      .map(s => ({ parentFolderId: s.parentFolder.id, subfolderId: s.id || s.name }));
+
+  const clearSelection = () => setSelectedIds(new Set());
+
+  const handleBulkDeleteClick = () => {
+    const payload = getSelectedPayload();
+    if (payload.length === 0) return;
+    if (window.confirm(`Hapus ${payload.length} subfolder terpilih beserta seluruh isinya? Tindakan ini tidak dapat dibatalkan.`)) {
+      onBulkDelete(payload);
+      clearSelection();
+    }
+  };
+
+  const openBulkMoveModal = (mode: 'parent' | 'hdd') => {
+    setBulkMoveMode(mode);
+    setBulkMoveTargetId('');
+  };
+
+  const handleConfirmBulkMove = () => {
+    if (!bulkMoveTargetId) return;
+    const payload = getSelectedPayload();
+    if (bulkMoveMode === 'parent') {
+      onBulkMoveToParent(payload, bulkMoveTargetId);
+    } else if (bulkMoveMode === 'hdd') {
+      const targetDrive = drives.find(d => d.id === bulkMoveTargetId);
+      onBulkMoveToHdd(payload, bulkMoveTargetId, targetDrive?.name);
+    }
+    setBulkMoveMode(null);
+    setBulkMoveTargetId('');
+    clearSelection();
+  };
+
   return (
     <div className="space-y-4 animate-fade-in">
       {/* Top Controls Toolbar (Link Management Style) */}
@@ -238,17 +281,55 @@ export const SubFolderCatalog: React.FC<SubFolderCatalogProps> = ({
         </div>
       </div>
 
-      {/* Summary status */}
-      <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 px-1">
-        <span>
-          Total Subfolder: <strong className="text-slate-900 dark:text-slate-100">{totalItems.toLocaleString()}</strong> item (Mendukung performa 8,000+ data)
-        </span>
-        {selectedIds.size > 0 && (
-          <span className="text-indigo-600 font-bold">
-            {selectedIds.size} subfolder dipilih
+      {/* Summary status / Bulk Action Toolbar */}
+      {selectedIds.size > 0 ? (
+        <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 bg-indigo-600 rounded-2xl shadow-md shadow-indigo-200/60 dark:shadow-none animate-fade-in">
+          <div className="flex items-center gap-2 text-white text-xs font-bold">
+            <CheckSquare className="w-4 h-4" />
+            <span>{selectedIds.size} subfolder dipilih</span>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => openBulkMoveModal('parent')}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white/15 hover:bg-white/25 text-white rounded-xl text-xs font-bold transition cursor-pointer"
+            >
+              <FolderInput className="w-3.5 h-3.5" />
+              <span>Pindah Folder Induk</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => openBulkMoveModal('hdd')}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white/15 hover:bg-white/25 text-white rounded-xl text-xs font-bold transition cursor-pointer"
+            >
+              <Move className="w-3.5 h-3.5" />
+              <span>Pindah HDD</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleBulkDeleteClick}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-rose-500 hover:bg-rose-600 text-white rounded-xl text-xs font-bold transition cursor-pointer"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>Hapus ({selectedIds.size})</span>
+            </button>
+            <button
+              type="button"
+              onClick={clearSelection}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold transition cursor-pointer"
+              title="Batalkan pilihan"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 px-1">
+          <span>
+            Total Subfolder: <strong className="text-slate-900 dark:text-slate-100">{totalItems.toLocaleString()}</strong> item (Mendukung performa 8,000+ data)
           </span>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* VIEWS */}
       {viewMode === 'standard' && (
@@ -266,10 +347,10 @@ export const SubFolderCatalog: React.FC<SubFolderCatalogProps> = ({
                       className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 w-4 h-4"
                     />
                   </th>
-                  <th className="py-3.5 px-4 w-16 text-center">[Foto]</th>
-                  <th className="py-3.5 px-4">[Nama Subfolder & Induk]</th>
-                  <th className="py-3.5 px-4 w-52">[Ukuran & Rasio Kapasitas]</th>
-                  <th className="py-3.5 px-4">[Lokasi Penyimpanan & Path]</th>
+                  <th className="py-3.5 px-4 w-16 text-center">Foto</th>
+                  <th className="py-3.5 px-4 text-center">Nama Subfolder &amp; Induk</th>
+                  <th className="py-3.5 px-4 w-52 text-center">Ukuran &amp; Rasio Kapasitas</th>
+                  <th className="py-3.5 px-4 text-center">Lokasi Penyimpanan &amp; Path</th>
                   <th className="py-3.5 px-4 w-32 text-center">Aksi Operasional</th>
                 </tr>
               </thead>
@@ -601,6 +682,80 @@ export const SubFolderCatalog: React.FC<SubFolderCatalogProps> = ({
             <span>Berikutnya</span>
             <ChevronRight className="w-3.5 h-3.5" />
           </button>
+        </div>
+      )}
+
+      {/* BULK MOVE MODAL (Parent Folder or HDD) */}
+      {bulkMoveMode && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-md w-full p-6 border border-slate-200 dark:border-slate-800 shadow-2xl space-y-4 animate-scale-up">
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                {bulkMoveMode === 'parent' ? (
+                  <FolderInput className="w-5 h-5 text-indigo-600" />
+                ) : (
+                  <HardDrive className="w-5 h-5 text-indigo-600" />
+                )}
+                <span>
+                  {bulkMoveMode === 'parent' ? 'Pindah ke Folder Induk Lain' : 'Pindah ke HDD Lain'}
+                </span>
+              </h3>
+              <button
+                type="button"
+                onClick={() => setBulkMoveMode(null)}
+                className="p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              {selectedIds.size} subfolder terpilih akan dipindahkan. Pilih tujuan di bawah ini.
+            </p>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">
+                {bulkMoveMode === 'parent' ? 'Folder Induk Tujuan' : 'HDD Tujuan'}
+              </label>
+              <select
+                value={bulkMoveTargetId}
+                onChange={e => setBulkMoveTargetId(e.target.value)}
+                className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold outline-none focus:ring-2 focus:ring-indigo-600"
+              >
+                <option value="">— Pilih tujuan —</option>
+                {bulkMoveMode === 'parent'
+                  ? folders.map(f => (
+                      <option key={f.id} value={f.id}>
+                        {f.name} ({f.hddName || 'HDD 1'})
+                      </option>
+                    ))
+                  : drives.map(d => (
+                      <option key={d.id} value={d.id}>
+                        {d.name}
+                      </option>
+                    ))}
+              </select>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
+              <button
+                type="button"
+                onClick={() => setBulkMoveMode(null)}
+                className="px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                disabled={!bulkMoveTargetId}
+                onClick={handleConfirmBulkMove}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl text-xs font-bold shadow-xs flex items-center gap-1.5"
+              >
+                <Check className="w-3.5 h-3.5" />
+                <span>Pindahkan Sekarang</span>
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
