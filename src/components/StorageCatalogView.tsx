@@ -37,6 +37,7 @@ export const StorageCatalogView: React.FC<StorageCatalogViewProps> = ({
   const [sortBy, setSortBy] = useState<'name-asc' | 'name-desc' | 'size-desc' | 'size-asc'>('name-asc');
   const [viewMode, setViewMode] = useState<'table' | 'catalog'>('table');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [lastClickedIndex, setLastClickedIndex] = useState<number | null>(null);
   const [isMoveModalOpen, setIsMoveModalOpen] = useState(false);
   const [moveTargetHddId, setMoveTargetHddId] = useState('');
 
@@ -95,6 +96,22 @@ export const StorageCatalogView: React.FC<StorageCatalogViewProps> = ({
       else next.add(id);
       return next;
     });
+  };
+
+  // Excel/spreadsheet-style selection: Shift+click selects the contiguous
+  // range from the last clicked folder to this one, added to the existing
+  // selection rather than replacing it.
+  const handleRowSelectClick = (e: React.MouseEvent, id: string, index: number) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.shiftKey && lastClickedIndex !== null) {
+      const [start, end] = [lastClickedIndex, index].sort((a, b) => a - b);
+      const rangeIds = processedFolders.slice(start, end + 1).map(f => f.id);
+      setSelectedIds(prev => new Set([...prev, ...rangeIds]));
+    } else {
+      toggleSelectOne(id);
+      setLastClickedIndex(index);
+    }
   };
 
   const clearSelection = () => setSelectedIds(new Set());
@@ -254,7 +271,7 @@ export const StorageCatalogView: React.FC<StorageCatalogViewProps> = ({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-xs">
-                {processedFolders.map(folder => {
+                {processedFolders.map((folder, rowIndex) => {
                   const subcount = folder.subfolders?.length || folder.foldersCount || 0;
                   const filecount = folder.filesCount || 0;
                   const sizeFormatted = folder.usedStorageFormatted || formatBytes(folder.usedBytes);
@@ -274,7 +291,7 @@ export const StorageCatalogView: React.FC<StorageCatalogViewProps> = ({
                           type="checkbox"
                           checked={isSelected}
                           onChange={() => {}}
-                          onClick={e => toggleSelectOne(folder.id, e)}
+                          onClick={e => handleRowSelectClick(e, folder.id, rowIndex)}
                           className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 w-4 h-4"
                         />
                       </td>
@@ -378,7 +395,7 @@ export const StorageCatalogView: React.FC<StorageCatalogViewProps> = ({
       ) : (
         /* CATALOG PRODUCT CARD GRID VIEW */
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {processedFolders.map(folder => {
+          {processedFolders.map((folder, cardIndex) => {
             const subcount = folder.subfolders?.length || folder.foldersCount || 0;
             const filecount = folder.filesCount || 0;
             const sizeFormatted = folder.usedStorageFormatted || formatBytes(folder.usedBytes);
@@ -409,7 +426,7 @@ export const StorageCatalogView: React.FC<StorageCatalogViewProps> = ({
                     )}
                     <button
                       type="button"
-                      onClick={e => toggleSelectOne(folder.id, e)}
+                      onClick={e => handleRowSelectClick(e, folder.id, cardIndex)}
                       className={`absolute top-3 left-3 w-6 h-6 rounded-lg border-2 flex items-center justify-center transition shadow-xs cursor-pointer ${
                         isSelected
                           ? 'bg-indigo-600 border-indigo-600 text-white'
