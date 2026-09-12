@@ -186,3 +186,15 @@ export interface StorageOverviewStats {
   videosSizeGB: number;
   archivesSizeGB: number;
 }
+
+export interface AuditLogEntry {
+  id: string;
+  action: 'CREATE' | 'UPDATE' | 'DELETE' | 'STATUS_CHANGE' | 'AI_TAG' | 'HEALTH_CHECK' | 'UPLOAD' | 'IMPORT';
+  targetType: 'link' | 'folder' | 'file' | 'system';
+  targetName: string;
+  details: string;
+  userEmail?: string;
+  timestamp: number;
+  formattedTime: string;
+}
+

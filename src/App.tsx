@@ -34,6 +34,7 @@ import {
   Clock,
   Calendar,
   RotateCcw,
+  Shield,
 } from 'lucide-react';
 import {
   LinkItem,
@@ -49,6 +50,7 @@ import {
   CommandCenterTab,
   HardDriveProfile,
   HddTransferPlan,
+  AuditLogEntry,
 } from './types';
 import { INITIAL_LINKS } from './data/initialData';
 import { INITIAL_FOLDERS, INITIAL_STORAGE_OVERVIEW } from './data/initialStorageData';
@@ -59,6 +61,7 @@ import { LinkManagementCard } from './components/LinkManagementCard';
 import { FolderDetailModal } from './components/FolderDetailModal';
 import { SubfolderDetailModal } from './components/SubfolderDetailModal';
 import { NewFolderModal } from './components/NewFolderModal';
+import { AuditLogModal } from './components/AuditLogModal';
 import { StatsCards } from './components/StatsCards';
 import { LinkTable } from './components/LinkTable';
 import { UploadExcelModal } from './components/UploadExcelModal';
@@ -231,7 +234,66 @@ export default function App() {
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isExtractModalOpen, setIsExtractModalOpen] = useState(false);
+  const [isAuditModalOpen, setIsAuditModalOpen] = useState(false);
   const [showCharts, setShowCharts] = useState(true);
+
+  // Audit Logs State
+  const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>(() => {
+    try {
+      const saved = localStorage.getItem('rubixxx_audit_logs');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch {}
+    return [
+      {
+        id: 'log-initial-1',
+        action: 'CREATE',
+        targetType: 'system',
+        targetName: 'Rubixxxlink CommandCenter',
+        details: 'Sistem diinisialisasi dengan Automated Health Monitor, AI Smart Categorization, dan Audit Trail.',
+        timestamp: Date.now() - 3600000,
+        formattedTime: new Date(Date.now() - 3600000).toLocaleString('id-ID'),
+      },
+    ];
+  });
+
+  const addAuditLog = (
+    action: AuditLogEntry['action'],
+    targetType: AuditLogEntry['targetType'],
+    targetName: string,
+    details: string
+  ) => {
+    const newLog: AuditLogEntry = {
+      id: `log-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      action,
+      targetType,
+      targetName,
+      details,
+      userEmail: currentUser?.email || undefined,
+      timestamp: Date.now(),
+      formattedTime: new Date().toLocaleString('id-ID'),
+    };
+    setAuditLogs(prev => {
+      const next = [newLog, ...prev].slice(0, 500);
+      try {
+        localStorage.setItem('rubixxx_audit_logs', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  };
+
+  // Link Health Score calculation
+  const linkHealthStats = useMemo(() => {
+    if (items.length === 0) return { score: 100, active: 0, broken: 0 };
+    const brokenCount = items.filter(
+      i => i.status === 'Blank' || i.note.toLowerCase().includes('404') || i.note.toLowerCase().includes('inactive')
+    ).length;
+    const activeCount = items.length - brokenCount;
+    const score = Math.round((activeCount / items.length) * 100);
+    return { score, active: activeCount, broken: brokenCount };
+  }, [items]);
 
   // Filters and UI states
   const [searchQuery, setSearchQuery] = useState('');
@@ -1586,6 +1648,23 @@ export default function App() {
                 <span className="hidden xl:inline">Ekstrak</span>
               </button>
 
+              {/* Audit Logs Button */}
+              <button
+                type="button"
+                id="btn-open-audit-logs"
+                onClick={() => setIsAuditModalOpen(true)}
+                className="px-3 py-2 text-xs font-semibold bg-white dark:bg-slate-800 border border-slate-200/90 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl transition flex items-center gap-1.5 shadow-2xs cursor-pointer relative"
+                title="Lihat riwayat aktivitas & audit log sistem"
+              >
+                <Shield className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                <span className="hidden xl:inline">Audit Log</span>
+                {auditLogs.length > 0 && (
+                  <span className="absolute -top-1 -right-1 w-4 h-4 bg-emerald-600 text-white rounded-full text-[9px] font-bold flex items-center justify-center">
+                    {auditLogs.length > 99 ? '99+' : auditLogs.length}
+                  </span>
+                )}
+              </button>
+
               {/* Dropdown Options Settings */}
               <button
                 type="button"
@@ -2146,6 +2225,20 @@ export default function App() {
         onClose={() => setIsExtractModalOpen(false)}
         existingItems={items}
         onNotify={(msg, type) => addToast(type, msg)}
+      />
+
+      {/* Audit Log Modal */}
+      <AuditLogModal
+        isOpen={isAuditModalOpen}
+        onClose={() => setIsAuditModalOpen(false)}
+        logs={auditLogs}
+        onClearLogs={() => {
+          setAuditLogs([]);
+          try {
+            localStorage.removeItem('rubixxx_audit_logs');
+          } catch {}
+          addToast('info', 'Riwayat audit log dibersihkan.');
+        }}
       />
     </div>
   );
