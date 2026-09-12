@@ -102,7 +102,7 @@ import {
   subscribeToUserSettings,
   saveUserSettingsToFirestore,
   DEFAULT_SETTINGS,
-} from './lib/firebase';
+} from './lib/supabase';
 
 export default function App() {
   // Command Center Mode: 'dashboard_hub' | 'storage_management' | 'link_management' | 'command_center'
@@ -362,7 +362,7 @@ export default function App() {
     });
   };
 
-  // 1. Firebase Auth listener
+  // 1. Supabase Auth listener
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, user => {
       if (user) {
@@ -388,7 +388,7 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  // 2. User-isolated Firestore Data Subscriptions
+  // 2. User-isolated Supabase Data Subscriptions
   useEffect(() => {
     if (!currentUser) {
       setFolders([]);
@@ -1473,7 +1473,7 @@ export default function App() {
     ).length;
   }, [items]);
 
-  // If Auth state is still initializing from Firebase
+  // If Auth state is still initializing from Supabase
   if (!authInitialized) {
     return (
       <div className="min-h-screen bg-slate-900 text-white flex flex-col items-center justify-center p-4 font-sans">

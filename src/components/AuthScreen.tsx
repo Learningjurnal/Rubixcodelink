@@ -17,7 +17,7 @@ import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signInWithGoogle,
-} from '../lib/firebase';
+} from '../lib/supabase';
 
 export interface AppUser {
   uid: string;
@@ -60,7 +60,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onSuccess, onDirectLogin
     }
   };
 
-  // Google 1-Click Sign-In (Primary configured Firebase provider)
+  // Google 1-Click Sign-In (Primary configured Supabase OAuth provider)
   const handleGoogleSignIn = async () => {
     setErrorMsg('');
     setShowDirectLoginPrompt(false);
@@ -77,7 +77,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onSuccess, onDirectLogin
         setErrorMsg('Popup browser diblokir. Izinkan popup untuk situs ini atau gunakan opsi Sesi Langsung di bawah.');
         setShowDirectLoginPrompt(true);
       } else if (err.code === 'auth/operation-not-allowed') {
-        setErrorMsg('Google Sign-In belum diaktifkan di Firebase Console. Gunakan tombol Sesi Langsung di bawah.');
+        setErrorMsg('Google Sign-In belum diaktifkan di Supabase (Authentication > Providers). Gunakan tombol Sesi Langsung di bawah.');
         setShowDirectLoginPrompt(true);
       } else {
         setErrorMsg(err.message || 'Gagal masuk dengan Google.');
@@ -106,7 +106,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onSuccess, onDirectLogin
       console.error('Auth error:', err);
       if (err.code === 'auth/operation-not-allowed') {
         setErrorMsg(
-          'Metode Login Email/Password belum diaktifkan di Firebase Console proyek ini. Gunakan tombol "Masuk dengan Akun Google" di atas atau masuk langsung dengan "Sesi Langsung Pengguna Tunggal" di bawah.'
+          'Metode Login Email/Password belum diaktifkan di project Supabase ini (Authentication > Providers). Gunakan tombol "Masuk dengan Akun Google" di atas atau masuk langsung dengan "Sesi Langsung Pengguna Tunggal" di bawah.'
         );
         setShowDirectLoginPrompt(true);
       } else if (

@@ -4,10 +4,9 @@ import { LinkItem, ExtractedLinkResult } from '../types';
 import { extractLinkFromText, extractLinksFromMultiLineText } from '../utils/linkExtractor';
 import { formatDateNow } from '../utils/excelHelper';
 import {
-  batchAddLinksToFirestore,
   batchAddUserLinksToFirestore,
   batchUpdateItemsInFirestore,
-} from '../lib/firebase';
+} from '../lib/supabase';
 
 interface ExtractLinkModalProps {
   isOpen: boolean;
@@ -61,6 +60,11 @@ export const ExtractLinkModal: React.FC<ExtractLinkModalProps> = ({
       return;
     }
 
+    if (!userId) {
+      onNotify('Sesi pengguna tidak ditemukan. Silakan masuk ulang.', 'error');
+      return;
+    }
+
     setIsProcessing(true);
     try {
       const now = Date.now();
@@ -76,11 +80,7 @@ export const ExtractLinkModal: React.FC<ExtractLinkModalProps> = ({
         createdAt: now,
       }));
 
-      if (userId) {
-        await batchAddUserLinksToFirestore(userId, itemsToSave);
-      } else {
-        await batchAddLinksToFirestore(itemsToSave);
-      }
+      await batchAddUserLinksToFirestore(userId, itemsToSave);
       onNotify(`Berhasil mengekstrak dan menyimpan ${itemsToSave.length} link baru ke database!`, 'success');
       onClose();
     } catch (e: any) {
@@ -93,6 +93,10 @@ export const ExtractLinkModal: React.FC<ExtractLinkModalProps> = ({
 
   const handleFixExistingItems = async () => {
     if (existingEmbeddedItems.length === 0) return;
+    if (!userId) {
+      onNotify('Sesi pengguna tidak ditemukan. Silakan masuk ulang.', 'error');
+      return;
+    }
     setIsProcessing(true);
     try {
       const today = formatDateNow();

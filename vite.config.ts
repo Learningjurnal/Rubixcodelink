@@ -5,7 +5,10 @@ import {defineConfig} from 'vite';
 
 export default defineConfig(() => {
   return {
-    base: '/Rubixxxlink/',
+    // Served from the domain root on Vercel (and most other hosts).
+    // If you also deploy to GitHub Pages under a subpath, override this
+    // per-build via an env var instead of hardcoding a repo-name path here.
+    base: '/',
     plugins: [react(), tailwindcss()],
     resolve: {
       alias: {
@@ -32,8 +35,8 @@ export default defineConfig(() => {
               if (id.includes('recharts') || id.includes('d3-') || id.includes('victory-vendor')) {
                 return 'vendor-charts';
               }
-              if (id.includes('firebase')) {
-                return 'vendor-firebase';
+              if (id.includes('@supabase')) {
+                return 'vendor-supabase';
               }
             }
           },

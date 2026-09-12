@@ -1,7 +1,7 @@
 import express from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
-import { GoogleGenAI } from "@google/genai";
+import { runCategorization } from "./server/categorize";
 
 async function startServer() {
   const app = express();
@@ -17,37 +17,8 @@ async function startServer() {
   // AI Smart Categorization & Tagging Endpoint
   app.post("/api/ai/categorize", async (req, res) => {
     try {
-      const { text, url, name, note } = req.body;
-      const apiKey = process.env.GEMINI_API_KEY;
-
-      if (!apiKey) {
-        return res.status(500).json({ error: "GEMINI_API_KEY is not configured on the server." });
-      }
-
-      const ai = new GoogleGenAI({ apiKey });
-      const prompt = `Analyze this link/file item and provide JSON with suggested category (e.g. Dokumen, Media, Arsip, Cloud, Video), recommended tags (comma-separated string), and a short summary note (in Indonesian).
-Item Name: ${name || 'N/A'}
-URL: ${url || 'N/A'}
-Note: ${note || 'N/A'}
-Text: ${text || 'N/A'}
-
-Return strictly JSON format:
-{
-  "category": "...",
-  "tags": "tag1, tag2, tag3",
-  "smartNote": "..."
-}`;
-
-      const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: prompt,
-      });
-
-      const rawText = response.text || "{}";
-      const cleanedJson = rawText.replace(/```json/g, "").replace(/```/g, "").trim();
-      const parsed = JSON.parse(cleanedJson);
-
-      res.json({ success: true, result: parsed });
+      const result = await runCategorization(req.body || {});
+      res.json({ success: true, result });
     } catch (error: any) {
       console.error("AI Categorization error:", error);
       res.status(500).json({ error: error.message || "Failed to process AI categorization" });
@@ -64,7 +35,7 @@ Return strictly JSON format:
   } else {
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
-    app.get('*all', (req, res) => {
+    app.get('*', (req, res) => {
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }
