@@ -1,0 +1,126 @@
+{
+  "entities": {
+    "Link": {
+      "title": "Link",
+      "description": "Represents a stored bookmark or download link record",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Label or name of the link"
+        },
+        "link": {
+          "type": "string",
+          "description": "Full URL destination"
+        },
+        "status": {
+          "type": "string",
+          "description": "Current processing or download status"
+        },
+        "output": {
+          "type": "string",
+          "description": "Output method (e.g. Single, Batch, Bulk)"
+        },
+        "region": {
+          "type": "string",
+          "description": "Region classification (e.g. LIVE, ASIA, US, EU)"
+        },
+        "counta": {
+          "type": "number",
+          "description": "Order or count index"
+        },
+        "note": {
+          "type": "string",
+          "description": "Additional notes or remarks"
+        },
+        "tag": {
+          "type": "string",
+          "description": "Category or grouping tag"
+        },
+        "diperbarui": {
+          "type": "string",
+          "description": "Formatted last modified timestamp"
+        },
+        "createdAt": {
+          "type": "number",
+          "description": "Creation timestamp in milliseconds"
+        },
+        "downloadedAt": {
+          "type": "string",
+          "description": "ISO timestamp when marked as downloaded"
+        },
+        "userEmail": {
+          "type": "string",
+          "description": "Email of user who created or owns the item"
+        }
+      },
+      "required": ["link"]
+    },
+    "Settings": {
+      "title": "Settings",
+      "description": "Application configurable dropdowns and options",
+      "type": "object",
+      "properties": {
+        "statusOptions": {
+          "type": "array",
+          "description": "List of available status labels"
+        },
+        "outputOptions": {
+          "type": "array",
+          "description": "List of available output format options"
+        },
+        "regionOptions": {
+          "type": "array",
+          "description": "List of available region options"
+        },
+        "notePresets": {
+          "type": "array",
+          "description": "Quick pick list for notes"
+        }
+      }
+    },
+    "StorageFolder": {
+      "title": "StorageFolder",
+      "description": "Represents a user storage folder with files and capacity limits",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "themeColor": { "type": "string" },
+        "usedBytes": { "type": "number" },
+        "capacityBytes": { "type": "number" },
+        "filesCount": { "type": "number" },
+        "foldersCount": { "type": "number" },
+        "sharedCount": { "type": "number" },
+        "tags": { "type": "array" },
+        "ownerName": { "type": "string" },
+        "ownerEmail": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "files": { "type": "array" }
+      },
+      "required": ["name"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}/links/{linkId}": {
+      "schema": "Link",
+      "description": "User-isolated collection of link records"
+    },
+    "/users/{userId}/folders/{folderId}": {
+      "schema": "StorageFolder",
+      "description": "User-isolated collection of storage folders and files"
+    },
+    "/users/{userId}/settings/{settingId}": {
+      "schema": "Settings",
+      "description": "User-isolated application settings document"
+    },
+    "/links/{linkId}": {
+      "schema": "Link",
+      "description": "Fallback legacy collection of link records"
+    },
+    "/settings/{settingId}": {
+      "schema": "Settings",
+      "description": "Application settings document"
+    }
+  }
+}

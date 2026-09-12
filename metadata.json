@@ -1,0 +1,8 @@
+{
+  "name": "Command Center - Storage & Link Management",
+  "description": "Pusat komando terpadu untuk Manajemen Penyimpanan Cloud (Storage Management) dan Manajemen Tautan Unduhan (Link Management) dengan pemantauan kuota dan sinkronisasi real-time.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
