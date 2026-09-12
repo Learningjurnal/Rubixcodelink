@@ -589,8 +589,9 @@ export default function App() {
       try {
         await updateUserLinkInFirestore(currentUser.uid, id, { output: newOutput });
         addToast('info', `Output diubah menjadi "${newOutput}".`);
-      } catch (e) {
+      } catch (e: any) {
         console.error(e);
+        addToast('error', `Gagal menyimpan perubahan output: ${e?.message || 'periksa koneksi/sesi login Anda.'}`);
       }
     }
   };
@@ -603,8 +604,9 @@ export default function App() {
       try {
         await updateUserLinkInFirestore(currentUser.uid, id, { region: newRegion });
         addToast('info', `Region diubah menjadi "${newRegion}".`);
-      } catch (e) {
+      } catch (e: any) {
         console.error(e);
+        addToast('error', `Gagal menyimpan perubahan region: ${e?.message || 'periksa koneksi/sesi login Anda.'}`);
       }
     }
   };
@@ -617,8 +619,9 @@ export default function App() {
       try {
         await updateUserLinkInFirestore(currentUser.uid, id, { note: newNote });
         addToast('info', 'Catatan diperbarui.');
-      } catch (e) {
+      } catch (e: any) {
         console.error(e);
+        addToast('error', `Gagal menyimpan catatan: ${e?.message || 'periksa koneksi/sesi login Anda.'}`);
       }
     }
   };
@@ -635,8 +638,9 @@ export default function App() {
       try {
         await deleteUserLinkFromFirestore(currentUser.uid, id);
         addToast('info', 'Tautan dihapus dari database.');
-      } catch (e) {
+      } catch (e: any) {
         console.error(e);
+        addToast('error', `Gagal menghapus tautan dari database: ${e?.message || 'periksa koneksi/sesi login Anda.'}`);
       }
     }
   };
@@ -675,8 +679,9 @@ export default function App() {
       try {
         await batchUpdateUserLinkStatusInFirestore(currentUser.uid, ids, status, today);
         addToast('success', `${ids.length} link diubah statusnya menjadi "${status}".`);
-      } catch (e) {
+      } catch (e: any) {
         console.error(e);
+        addToast('error', `Gagal menyimpan perubahan status ke database: ${e?.message || 'periksa koneksi/sesi login Anda.'}`);
       }
     }
   };
@@ -704,8 +709,9 @@ export default function App() {
         } else {
           addToast('info', `Tag berhasil dihapus dari ${ids.length} tautan.`);
         }
-      } catch (e) {
+      } catch (e: any) {
         console.error(e);
+        addToast('error', `Gagal menyimpan perubahan tag ke database: ${e?.message || 'periksa koneksi/sesi login Anda.'}`);
       }
     }
   };
@@ -771,8 +777,9 @@ export default function App() {
           }
         }
         addToast('success', `Bulk Tag Editor berhasil memperbarui ${ids.length} tautan.`);
-      } catch (e) {
+      } catch (e: any) {
         console.error(e);
+        addToast('error', `Gagal menyimpan Bulk Tag Editor ke database: ${e?.message || 'periksa koneksi/sesi login Anda.'}`);
       }
     }
   };
@@ -819,8 +826,9 @@ export default function App() {
       try {
         await batchDeleteUserLinksFromFirestore(currentUser.uid, ids);
         addToast('info', `${ids.length} tautan dihapus dari database.`);
-      } catch (e) {
+      } catch (e: any) {
         console.error(e);
+        addToast('error', `Gagal menghapus tautan dari database: ${e?.message || 'periksa koneksi/sesi login Anda.'}`);
       }
     }
   };
@@ -835,6 +843,7 @@ export default function App() {
     addToast('info', `Mengecek status ${selectedItems.length} tautan di latar belakang...`);
 
     const flagged404Ids: string[] = [];
+    let syncFailedCount = 0;
     const today = formatDateNow();
 
     for (let index = 0; index < selectedItems.length; index++) {
@@ -871,6 +880,7 @@ export default function App() {
             });
           } catch (err) {
             console.error(`Failed to update Firestore for item ${item.id}:`, err);
+            syncFailedCount++;
           }
         }
       }
@@ -888,6 +898,13 @@ export default function App() {
       addToast(
         'success',
         `Pemeriksaan Selesai! Seluruh ${selectedItems.length} link terpilih dalam keadaan aktif (bebas 404).`
+      );
+    }
+
+    if (syncFailedCount > 0) {
+      addToast(
+        'error',
+        `${syncFailedCount} perubahan status GAGAL disimpan ke database (hanya tersimpan di tampilan lokal).`
       );
     }
   };
@@ -978,8 +995,12 @@ export default function App() {
       } else {
         addToast('success', `${newLinks.length} tautan berhasil disimpan ke database Cloud privat Anda.`);
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
+      addToast(
+        'error',
+        `Gagal menyimpan tautan ke database — perubahan TIDAK tersimpan. ${e?.message || 'Periksa koneksi/sesi login Anda.'}`
+      );
     }
   };
 
@@ -1162,6 +1183,7 @@ export default function App() {
       addToast('success', `Berkas "${newFile.name}" berhasil diunggah.`);
     } catch (e: any) {
       console.error(e);
+      addToast('error', `Gagal mengunggah berkas — TIDAK tersimpan ke database. ${e?.message || 'periksa koneksi/sesi login Anda.'}`);
     }
   };
 
@@ -1175,6 +1197,7 @@ export default function App() {
       addToast('info', 'Berkas berhasil dihapus dari folder.');
     } catch (e: any) {
       console.error(e);
+      addToast('error', `Gagal menghapus berkas dari database: ${e?.message || 'periksa koneksi/sesi login Anda.'}`);
     }
   };
 
@@ -1190,6 +1213,7 @@ export default function App() {
       addToast('info', 'Folder berhasil dihapus dari penyimpanan.');
     } catch (e: any) {
       console.error(e);
+      addToast('error', `Gagal menghapus folder dari database: ${e?.message || 'periksa koneksi/sesi login Anda.'}`);
     }
   };
 
@@ -2191,8 +2215,9 @@ export default function App() {
           if (currentUser) {
             try {
               await saveUserSettingsToFirestore(currentUser.uid, newSettings);
-            } catch (e) {
+            } catch (e: any) {
               console.error(e);
+              addToast('error', `Gagal menyimpan pengaturan ke database: ${e?.message || 'periksa koneksi/sesi login Anda.'}`);
             }
           }
         }}
