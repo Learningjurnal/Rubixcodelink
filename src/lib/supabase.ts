@@ -444,7 +444,18 @@ export function subscribeToUserFolders(
   onUpdate: (folders: StorageFolder[]) => void,
   onError?: (err: Error) => void
 ) {
-  return subscribeToUserRows('user_folders', userId, rowToStorageFolder, null, onUpdate, onError);
+  // A stable ORDER BY is required here, not just cosmetic: SubFolderCatalog
+  // and StorageCatalogView track a `lastClickedIndex` for Shift+click range
+  // selection, keyed to each row's position in this fetched array. Without
+  // an explicit order, Postgres/PostgREST can return rows in a different
+  // sequence on every refetch (this table refetches its full row set on any
+  // change, per subscribeToUserRows below) — the very next click would then
+  // compute a "range" against stale indices that point at different rows
+  // than what's on screen, producing exactly the scattered, seemingly
+  // unresponsive selection this was fixing. `id` doesn't need to be
+  // meaningful (the UI re-sorts client-side by the user's chosen sort
+  // order anyway) — it only needs to be stable across fetches.
+  return subscribeToUserRows('user_folders', userId, rowToStorageFolder, { column: 'id', ascending: true }, onUpdate, onError);
 }
 
 export async function addUserFolderToFirestore(userId: string, folder: Omit<StorageFolder, 'id'>): Promise<string> {
