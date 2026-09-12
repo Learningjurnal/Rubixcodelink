@@ -200,9 +200,21 @@ export const StorageCatalogView: React.FC<StorageCatalogViewProps> = ({
         </div>
       </div>
 
-      {/* Results summary / Bulk Action Toolbar */}
-      {selectedIds.size > 0 ? (
-        <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 bg-indigo-600 rounded-2xl shadow-md shadow-indigo-200/60 dark:shadow-none animate-fade-in">
+      {/* Results summary — always in normal document flow, at a constant
+          height regardless of selection state. The bulk action toolbar
+          below is a fixed-position overlay rather than an in-flow sibling
+          that swaps in/out here: an in-flow toolbar appearing/disappearing
+          changes this section's height and pushes the table below it up or
+          down, which is what made row clicks (and the Aksi Operasional
+          buttons on the affected row) land on the wrong target. A fixed
+          overlay never affects page layout. */}
+      <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 px-1">
+        <span>Menampilkan <strong className="text-slate-900 dark:text-slate-100">{processedFolders.length}</strong> folder rekap</span>
+      </div>
+
+      {/* Bulk Action Toolbar — fixed overlay, does not affect table layout */}
+      {selectedIds.size > 0 && (
+        <div className="fixed bottom-4 sm:bottom-6 left-1/2 -translate-x-1/2 z-40 w-[calc(100%-2rem)] max-w-2xl flex flex-wrap items-center justify-between gap-3 px-4 py-3 bg-indigo-600 rounded-2xl shadow-2xl shadow-indigo-900/40 animate-fade-in">
           <div className="flex items-center gap-2 text-white text-xs font-bold">
             <CheckSquare className="w-4 h-4" />
             <span>{selectedIds.size} folder dipilih</span>
@@ -233,10 +245,6 @@ export const StorageCatalogView: React.FC<StorageCatalogViewProps> = ({
               <X className="w-3.5 h-3.5" />
             </button>
           </div>
-        </div>
-      ) : (
-        <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 px-1">
-          <span>Menampilkan <strong className="text-slate-900 dark:text-slate-100">{processedFolders.length}</strong> folder rekap</span>
         </div>
       )}
 
