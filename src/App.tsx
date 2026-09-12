@@ -1541,7 +1541,7 @@ export default function App() {
                 <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
                   <span className="flex items-center gap-1 text-emerald-700 dark:text-emerald-400 font-semibold">
                     <Database className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
-                    <span>Firestore Privat</span>
+                    <span>Supabase Privat</span>
                   </span>
                   <span>•</span>
                   <span>{items.length} Links</span>
@@ -2134,7 +2134,7 @@ export default function App() {
 
       {/* Footer */}
       <footer className="w-full py-4 text-center text-xs text-slate-400 dark:text-slate-500 border-t border-slate-200/80 dark:border-slate-800 mt-8 bg-white dark:bg-slate-900 transition-colors">
-        Command Center • Storage Management & Link Management System • Cloud Firestore Realtime Sync
+        Command Center • Storage Management & Link Management System • Supabase Realtime Sync
       </footer>
 
       {/* Storage Modals */}

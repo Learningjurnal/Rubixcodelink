@@ -78,7 +78,7 @@ export const LinkManagementCard: React.FC<LinkManagementCardProps> = ({
                 Link Management
               </h2>
               <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200/80 dark:border-indigo-800/50">
-                Firestore Realtime
+                Supabase Realtime
               </span>
             </div>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">

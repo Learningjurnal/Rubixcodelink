@@ -181,7 +181,7 @@ export const DashboardHubLanding: React.FC<DashboardHubLandingProps> = ({
             <div className="flex items-center gap-2 mb-2">
               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-indigo-50 dark:bg-indigo-950/70 text-indigo-700 dark:text-indigo-300 border border-indigo-200/80 dark:border-indigo-800/60">
                 <Database className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
-                Database Cloud Firestore Privat
+                Database Cloud Supabase Privat
               </span>
               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60">
                 <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />

@@ -12,6 +12,6 @@ export const INITIAL_STORAGE_OVERVIEW: StorageOverviewStats = {
   archivesSizeGB: 0,
 };
 
-// Data dummy dikosongkan agar sistem bersih dan sepenuhnya dikelola per user di database Firestore
+// Data dummy dikosongkan agar sistem bersih dan sepenuhnya dikelola per user di database Supabase
 export const INITIAL_FOLDERS: StorageFolder[] = [];
 

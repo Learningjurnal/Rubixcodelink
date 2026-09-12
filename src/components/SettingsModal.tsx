@@ -547,7 +547,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 <div>
                   <p className="text-xs font-bold text-rose-900 dark:text-rose-200">Kosongkan Semua Data Link</p>
                   <p className="text-[11px] text-rose-700 dark:text-rose-400">
-                    Menghapus seluruh tautan yang tersimpan di Firestore ({totalLinksCount} data aktif).
+                    Menghapus seluruh tautan yang tersimpan di Supabase ({totalLinksCount} data aktif).
                   </p>
                 </div>
                 <button
