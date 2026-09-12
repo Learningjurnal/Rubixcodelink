@@ -558,6 +558,13 @@ export default function App() {
     }
   };
 
+  // Shift+click range-select: adds every id in the range to the existing
+  // selection (a union), matching spreadsheet behavior rather than
+  // replacing whatever was already selected.
+  const handleSelectRange = (ids: string[]) => {
+    setSelectedIds(prev => new Set([...prev, ...ids]));
+  };
+
   // Status and data update handlers with Firestore sync
   const handleUpdateStatus = async (id: string, newStatus: LinkStatus) => {
     const today = formatDateNow();
@@ -2334,6 +2341,7 @@ export default function App() {
               selectedIds={selectedIds}
               onToggleSelect={handleToggleSelect}
               onToggleSelectAll={handleToggleSelectAll}
+              onSelectRange={handleSelectRange}
               onUpdateStatus={handleUpdateStatus}
               onUpdateOutput={handleUpdateOutput}
               onUpdateRegion={handleUpdateRegion}

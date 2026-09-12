@@ -52,6 +52,7 @@ export const SubFolderCatalog: React.FC<SubFolderCatalogProps> = ({
   const [sortBy, setSortBy] = useState<'size-desc' | 'size-asc' | 'name-asc' | 'name-desc' | 'files-desc'>('size-desc');
   const [viewMode, setViewMode] = useState<'standard' | 'compact' | 'catalog'>('standard');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [lastClickedIndex, setLastClickedIndex] = useState<number | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(50);
 
@@ -148,6 +149,21 @@ export const SubFolderCatalog: React.FC<SubFolderCatalogProps> = ({
       newSelected.add(id);
     }
     setSelectedIds(newSelected);
+  };
+
+  // Excel/spreadsheet-style selection: Shift+click selects the contiguous
+  // range (within the current page) from the last clicked row to this one,
+  // added to the existing selection rather than replacing it.
+  const handleRowCheckboxClick = (e: React.MouseEvent, id: string, index: number) => {
+    e.preventDefault();
+    if (e.shiftKey && lastClickedIndex !== null) {
+      const [start, end] = [lastClickedIndex, index].sort((a, b) => a - b);
+      const rangeIds = paginatedItems.slice(start, end + 1).map(item => item.id || item.name);
+      setSelectedIds(prev => new Set([...prev, ...rangeIds]));
+    } else {
+      toggleSelectOne(id);
+      setLastClickedIndex(index);
+    }
   };
 
   const handleSaveEdit = () => {
@@ -385,7 +401,8 @@ export const SubFolderCatalog: React.FC<SubFolderCatalogProps> = ({
                           <input
                             type="checkbox"
                             checked={isSelected}
-                            onChange={() => toggleSelectOne(subId)}
+                            onChange={() => {}}
+                            onClick={e => handleRowCheckboxClick(e, subId, idx)}
                             className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 w-4 h-4"
                           />
                         </td>

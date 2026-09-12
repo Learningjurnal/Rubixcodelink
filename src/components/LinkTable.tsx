@@ -36,6 +36,7 @@ interface LinkTableProps {
   selectedIds: Set<string>;
   onToggleSelect: (id: string) => void;
   onToggleSelectAll: () => void;
+  onSelectRange: (ids: string[]) => void;
   onUpdateStatus: (id: string, newStatus: LinkStatus) => void;
   onUpdateOutput?: (id: string, newOutput: string) => void;
   onUpdateRegion?: (id: string, newRegion: string) => void;
@@ -62,6 +63,7 @@ export const LinkTable: React.FC<LinkTableProps> = ({
   selectedIds,
   onToggleSelect,
   onToggleSelectAll,
+  onSelectRange,
   onUpdateStatus,
   onUpdateOutput,
   onUpdateRegion,
@@ -82,8 +84,26 @@ export const LinkTable: React.FC<LinkTableProps> = ({
 }) => {
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [tempNote, setTempNote] = useState('');
+  const [lastClickedIndex, setLastClickedIndex] = useState<number | null>(null);
 
   const allSelected = items.length > 0 && selectedIds.size === items.length;
+
+  // Excel/spreadsheet-style row selection: plain click toggles one row,
+  // Shift+click selects the contiguous range from the last clicked row to
+  // this one (added to the existing selection, not replacing it), and
+  // Ctrl/Cmd+click toggles one row without disturbing the rest — same as
+  // a plain click here since these are independent checkboxes, kept for
+  // familiarity with spreadsheet muscle memory.
+  const handleRowCheckboxClick = (e: React.MouseEvent, id: string, index: number) => {
+    e.preventDefault();
+    if (e.shiftKey && lastClickedIndex !== null) {
+      const [start, end] = [lastClickedIndex, index].sort((a, b) => a - b);
+      onSelectRange(items.slice(start, end + 1).map(i => i.id));
+    } else {
+      onToggleSelect(id);
+      setLastClickedIndex(index);
+    }
+  };
 
   const startEditNote = (item: LinkItem) => {
     setEditingNoteId(item.id);
@@ -425,11 +445,12 @@ export const LinkTable: React.FC<LinkTableProps> = ({
                   >
                     {/* Checkbox */}
                     <td className="py-2.5 px-3.5 text-center border-r border-slate-200/80 dark:border-slate-800">
-                      <Tooltip content={isSelected ? "Batal pilih baris ini" : "Pilih baris ini"} position="right">
+                      <Tooltip content={isSelected ? "Batal pilih baris ini" : "Pilih baris ini (Shift+klik untuk pilih rentang)"} position="right">
                         <input
                           type="checkbox"
                           checked={isSelected}
-                          onChange={() => onToggleSelect(item.id)}
+                          onChange={() => {}}
+                          onClick={e => handleRowCheckboxClick(e, item.id, index)}
                           className="rounded text-indigo-600 focus:ring-indigo-500 h-4 w-4 cursor-pointer"
                         />
                       </Tooltip>
