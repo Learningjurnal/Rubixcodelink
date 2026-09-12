@@ -349,6 +349,25 @@ export async function batchAddUserLinksToFirestore(
   return totalSaved;
 }
 
+// Supabase RLS filters out rows the caller's session isn't authorized for
+// *silently* — an UPDATE/DELETE targeted at a specific, existing row id
+// that matches zero rows because of that (most commonly: the Supabase
+// auth session has expired or was never really established, so
+// auth.uid() evaluates to null server-side and `auth.uid() = user_id`
+// never matches) comes back as `{ error: null }`, indistinguishable from
+// a normal successful write. Every function below that mutates a specific
+// row by id therefore re-selects the id(s) it touched and throws when
+// that list is empty, turning what used to be a silent no-op — the user
+// clicks Delete, sees a success toast, and the row is back after the next
+// refetch, with no error anywhere — into a visible, actionable failure.
+function assertRowsAffected(data: { id: string }[] | null | undefined, context: string): void {
+  if (!data || data.length === 0) {
+    throw new Error(
+      `${context}: tidak ada baris yang berubah di database — sesi Anda mungkin sudah berakhir. Muat ulang halaman lalu login kembali.`
+    );
+  }
+}
+
 export async function updateUserLinkInFirestore(
   userId: string,
   id: string,
@@ -366,8 +385,9 @@ export async function updateUserLinkInFirestore(
   if (updates.diperbarui !== undefined) patch.diperbarui = updates.diperbarui;
   if (updates.downloadedAt !== undefined) patch.downloaded_at = updates.downloadedAt;
 
-  const { error } = await supabase.from('user_links').update(patch).eq('id', id).eq('user_id', userId);
+  const { data, error } = await supabase.from('user_links').update(patch).eq('id', id).eq('user_id', userId).select('id');
   if (error) throw error;
+  assertRowsAffected(data, 'Update tautan gagal');
 }
 
 /**
@@ -388,8 +408,9 @@ export async function batchUpdateItemsInFirestore(
 }
 
 export async function deleteUserLinkFromFirestore(userId: string, id: string): Promise<void> {
-  const { error } = await supabase.from('user_links').delete().eq('id', id).eq('user_id', userId);
+  const { data, error } = await supabase.from('user_links').delete().eq('id', id).eq('user_id', userId).select('id');
   if (error) throw error;
+  assertRowsAffected(data, 'Hapus tautan gagal');
 }
 
 export async function batchUpdateUserLinkStatusInFirestore(
@@ -404,8 +425,9 @@ export async function batchUpdateUserLinkStatusInFirestore(
 
   for (let i = 0; i < ids.length; i += CHUNK_SIZE) {
     const chunk = ids.slice(i, i + CHUNK_SIZE);
-    const { error } = await supabase.from('user_links').update(patch).eq('user_id', userId).in('id', chunk);
+    const { data, error } = await supabase.from('user_links').update(patch).eq('user_id', userId).in('id', chunk).select('id');
     if (error) throw error;
+    assertRowsAffected(data, 'Update status tautan gagal');
   }
 }
 
@@ -413,12 +435,14 @@ export async function batchUpdateUserLinkTagInFirestore(userId: string, ids: str
   const CHUNK_SIZE = 400;
   for (let i = 0; i < ids.length; i += CHUNK_SIZE) {
     const chunk = ids.slice(i, i + CHUNK_SIZE);
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('user_links')
       .update({ tag: tag.trim() })
       .eq('user_id', userId)
-      .in('id', chunk);
+      .in('id', chunk)
+      .select('id');
     if (error) throw error;
+    assertRowsAffected(data, 'Update tag tautan gagal');
   }
 }
 
@@ -426,8 +450,9 @@ export async function batchDeleteUserLinksFromFirestore(userId: string, ids: str
   const CHUNK_SIZE = 400;
   for (let i = 0; i < ids.length; i += CHUNK_SIZE) {
     const chunk = ids.slice(i, i + CHUNK_SIZE);
-    const { error } = await supabase.from('user_links').delete().eq('user_id', userId).in('id', chunk);
+    const { data, error } = await supabase.from('user_links').delete().eq('user_id', userId).in('id', chunk).select('id');
     if (error) throw error;
+    assertRowsAffected(data, 'Hapus tautan (bulk) gagal');
   }
 }
 
@@ -577,13 +602,15 @@ export async function updateUserFolderInFirestore(
   if (updates.sampleImageUrl !== undefined) patch.sample_image_url = updates.sampleImageUrl;
   if (updates.sampleImageHidden !== undefined) patch.sample_image_hidden = updates.sampleImageHidden;
 
-  const { error } = await supabase.from('user_folders').update(patch).eq('id', folderId).eq('user_id', userId);
+  const { data, error } = await supabase.from('user_folders').update(patch).eq('id', folderId).eq('user_id', userId).select('id');
   if (error) throw error;
+  assertRowsAffected(data, 'Update folder gagal');
 }
 
 export async function deleteUserFolderFromFirestore(userId: string, folderId: string): Promise<void> {
-  const { error } = await supabase.from('user_folders').delete().eq('id', folderId).eq('user_id', userId);
+  const { data, error } = await supabase.from('user_folders').delete().eq('id', folderId).eq('user_id', userId).select('id');
   if (error) throw error;
+  assertRowsAffected(data, 'Hapus folder gagal');
 }
 
 export async function addFileToUserFolderInFirestore(
@@ -595,7 +622,7 @@ export async function addFileToUserFolderInFirestore(
   const updatedFiles = [newFile, ...(currentFolder.files || [])];
   const newUsedBytes = (currentFolder.usedBytes || 0) + newFile.size;
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('user_folders')
     .update({
       files: updatedFiles,
@@ -605,8 +632,10 @@ export async function addFileToUserFolderInFirestore(
       updated_at: Date.now(),
     })
     .eq('id', folderId)
-    .eq('user_id', userId);
+    .eq('user_id', userId)
+    .select('id');
   if (error) throw error;
+  assertRowsAffected(data, 'Tambah file ke folder gagal');
 }
 
 export async function deleteFileFromUserFolderInFirestore(
@@ -620,7 +649,7 @@ export async function deleteFileFromUserFolderInFirestore(
   const reducedBytes = targetFile?.size || 0;
   const newUsedBytes = Math.max(0, (currentFolder.usedBytes || 0) - reducedBytes);
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('user_folders')
     .update({
       files: updatedFiles,
@@ -630,8 +659,10 @@ export async function deleteFileFromUserFolderInFirestore(
       updated_at: Date.now(),
     })
     .eq('id', folderId)
-    .eq('user_id', userId);
+    .eq('user_id', userId)
+    .select('id');
   if (error) throw error;
+  assertRowsAffected(data, 'Hapus file dari folder gagal');
 }
 
 // ---- Settings --------------------------------------------------------------
