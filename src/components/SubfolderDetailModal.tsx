@@ -72,7 +72,8 @@ export const SubfolderDetailModal: React.FC<SubfolderDetailModalProps> = ({
     }
   }, [subfolder, parentFolder]);
 
-  if (!isOpen || !subfolder || !parentFolder) return null;
+  if (!isOpen || !subfolder || !subfolder.id || !parentFolder) return null;
+  const subfolderId = subfolder.id;
 
   const handleUploadSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -81,7 +82,7 @@ export const SubfolderDetailModal: React.FC<SubfolderDetailModalProps> = ({
     const sizeNum = parseFloat(newFileSizeMB) || 5;
     const bytes = Math.round(sizeNum * 1024 * 1024);
 
-    onAddFile(parentFolder.id, subfolder.id, {
+    onAddFile(parentFolder.id, subfolderId, {
       name: newFileName.trim(),
       size: bytes,
       sizeFormatted: `${sizeNum >= 1024 ? (sizeNum / 1024).toFixed(2) + ' GB' : sizeNum.toFixed(1) + ' MB'}`,
@@ -97,7 +98,7 @@ export const SubfolderDetailModal: React.FC<SubfolderDetailModalProps> = ({
   const handleSaveEdit = (e: React.FormEvent) => {
     e.preventDefault();
     const selectedHdd = hardDrives.find(h => h.id === editHddId);
-    onUpdateSubfolder(parentFolder.id, subfolder.id, {
+    onUpdateSubfolder(parentFolder.id, subfolderId, {
       name: editName.trim() || subfolder.name,
       description: editDesc.trim(),
       sampleImageUrl: editSampleUrl.trim(),
@@ -239,7 +240,7 @@ export const SubfolderDetailModal: React.FC<SubfolderDetailModalProps> = ({
                   >
                     {hardDrives.map(h => (
                       <option key={h.id} value={h.id}>
-                        {h.name} ({h.mountPoint})
+                        {h.name} ({h.driveLetterOrMount})
                       </option>
                     ))}
                   </select>
@@ -452,7 +453,7 @@ export const SubfolderDetailModal: React.FC<SubfolderDetailModalProps> = ({
 
                       <button
                         type="button"
-                        onClick={() => onDeleteFile(parentFolder.id, subfolder.id, file.id)}
+                        onClick={() => onDeleteFile(parentFolder.id, subfolderId, file.id)}
                         className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
                         title="Hapus Media"
                       >
@@ -472,7 +473,7 @@ export const SubfolderDetailModal: React.FC<SubfolderDetailModalProps> = ({
             type="button"
             onClick={() => {
               if (window.confirm(`Apakah Anda yakin ingin menghapus subfolder "${subfolder.name}" beserta seluruh isinya?`)) {
-                onDeleteSubfolder(parentFolder.id, subfolder.id);
+                onDeleteSubfolder(parentFolder.id, subfolderId);
                 onBackToFolder();
               }
             }}

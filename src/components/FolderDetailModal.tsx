@@ -101,7 +101,6 @@ export const FolderDetailModal: React.FC<FolderDetailModalProps> = ({
     if (!newSubfolderName.trim()) return;
 
     onAddSubfolder(folder.id, {
-      id: `sub-${Date.now()}`,
       name: newSubfolderName.trim(),
       description: newSubfolderDesc.trim(),
       filesCount: 0,
@@ -419,6 +418,7 @@ export const FolderDetailModal: React.FC<FolderDetailModalProps> = ({
                         <button
                           type="button"
                           onClick={() => {
+                            if (!sub.id) return;
                             if (window.confirm(`Hapus subfolder "${sub.name}" beserta seluruh isinya?`)) {
                               onDeleteSubfolder(folder.id, sub.id);
                             }

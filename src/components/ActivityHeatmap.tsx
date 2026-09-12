@@ -138,7 +138,14 @@ export const ActivityHeatmap: React.FC<ActivityHeatmapProps> = ({ items }) => {
   };
 
   // High-level summary metrics
-  const stats = useMemo(() => {
+  const stats = useMemo((): {
+    totalActivity: number;
+    peakDay: DayActivity | null;
+    peakValue: number;
+    activeDaysCount: number;
+    totalDays: number;
+    averagePerDay: string;
+  } => {
     let totalActivity = 0;
     let peakDay: DayActivity | null = null;
     let peakValue = 0;
