@@ -198,6 +198,12 @@ function rowToStorageFolder(row: any): StorageFolder {
     ownerAvatar: row.owner_avatar || undefined,
     createdAt: row.created_at || new Date().toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' }),
     files: row.files || [],
+    subfolders: row.subfolders || [],
+    hddId: row.hdd_id || undefined,
+    hddName: row.hdd_name || undefined,
+    path: row.path || undefined,
+    sampleImageUrl: row.sample_image_url || undefined,
+    sampleImageHidden: row.sample_image_hidden || undefined,
   };
 }
 
@@ -461,6 +467,12 @@ export async function addUserFolderToFirestore(userId: string, folder: Omit<Stor
       owner_avatar: folder.ownerAvatar || null,
       created_at: folder.createdAt || new Date().toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' }),
       files: folder.files || [],
+      subfolders: folder.subfolders || [],
+      hdd_id: folder.hddId || null,
+      hdd_name: folder.hddName || null,
+      path: folder.path || null,
+      sample_image_url: folder.sampleImageUrl || null,
+      sample_image_hidden: folder.sampleImageHidden ?? false,
       updated_at: Date.now(),
     })
     .select('id')
@@ -500,6 +512,12 @@ export async function batchAddUserFoldersToFirestore(
       owner_avatar: folder.ownerAvatar || null,
       created_at: folder.createdAt || new Date().toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' }),
       files: folder.files || [],
+      subfolders: folder.subfolders || [],
+      hdd_id: folder.hddId || null,
+      hdd_name: folder.hddName || null,
+      path: folder.path || null,
+      sample_image_url: folder.sampleImageUrl || null,
+      sample_image_hidden: folder.sampleImageHidden ?? false,
       updated_at: Date.now(),
     }));
     const { error } = await supabase.from('user_folders').insert(chunk);
@@ -541,6 +559,12 @@ export async function updateUserFolderInFirestore(
   if (updates.ownerName !== undefined) patch.owner_name = updates.ownerName;
   if (updates.ownerAvatar !== undefined) patch.owner_avatar = updates.ownerAvatar;
   if (updates.files !== undefined) patch.files = updates.files;
+  if (updates.subfolders !== undefined) patch.subfolders = updates.subfolders;
+  if (updates.hddId !== undefined) patch.hdd_id = updates.hddId;
+  if (updates.hddName !== undefined) patch.hdd_name = updates.hddName;
+  if (updates.path !== undefined) patch.path = updates.path;
+  if (updates.sampleImageUrl !== undefined) patch.sample_image_url = updates.sampleImageUrl;
+  if (updates.sampleImageHidden !== undefined) patch.sample_image_hidden = updates.sampleImageHidden;
 
   const { error } = await supabase.from('user_folders').update(patch).eq('id', folderId).eq('user_id', userId);
   if (error) throw error;

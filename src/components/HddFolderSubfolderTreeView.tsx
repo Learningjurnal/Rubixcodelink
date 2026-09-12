@@ -110,7 +110,9 @@ export const HddFolderSubfolderTreeView: React.FC<HddFolderSubfolderTreeViewProp
     const allSub = new Set<string>();
     folders.forEach(f => {
       allFld.add(f.id);
-      f.subfolders?.forEach(s => allSub.add(s.id));
+      f.subfolders?.forEach(s => {
+        if (s.id) allSub.add(s.id);
+      });
     });
     setExpandedFolders(allFld);
     setExpandedSubfolders(allSub);
@@ -536,12 +538,14 @@ export const HddFolderSubfolderTreeView: React.FC<HddFolderSubfolderTreeViewProp
                           {/* Subfolders */}
                           {folder.subfolders && folder.subfolders.length > 0 ? (
                             folder.subfolders.map((sub, sIdx) => {
-                              const isSubExpanded = expandedSubfolders.has(sub.id);
-                              const isSubInTransfer = isItemInTransferPlan(sub.name, sub.path);
+                              const subId = sub.id || `sub-${folder.id}-${sIdx}`;
+                              const subSizeBytes = sub.sizeBytes ?? 0;
+                              const isSubExpanded = expandedSubfolders.has(subId);
+                              const isSubInTransfer = isItemInTransferPlan(sub.name, sub.path || '');
 
                               return (
                                 <div
-                                  key={sub.id || `sub-${folder.id}-${sIdx}`}
+                                  key={subId}
                                   className="p-2.5 rounded-xl bg-slate-50/70 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800/80 space-y-2"
                                 >
                                   {/* Subfolder Header */}
@@ -549,7 +553,7 @@ export const HddFolderSubfolderTreeView: React.FC<HddFolderSubfolderTreeViewProp
                                     <div className="flex items-center gap-2 min-w-0 flex-1">
                                       <button
                                         type="button"
-                                        onClick={() => toggleSubfolder(sub.id)}
+                                        onClick={() => toggleSubfolder(subId)}
                                         className="w-5 h-5 rounded hover:bg-slate-200 dark:hover:bg-slate-700 flex items-center justify-center text-slate-400 hover:text-slate-600 transition cursor-pointer shrink-0"
                                       >
                                         {isSubExpanded ? (
@@ -563,7 +567,7 @@ export const HddFolderSubfolderTreeView: React.FC<HddFolderSubfolderTreeViewProp
 
                                       <div className="min-w-0 flex-1 truncate">
                                         <span
-                                          onClick={() => toggleSubfolder(sub.id)}
+                                          onClick={() => toggleSubfolder(subId)}
                                           className="font-semibold text-xs text-slate-700 dark:text-slate-200 hover:text-indigo-600 cursor-pointer"
                                         >
                                           {sub.name}
@@ -576,7 +580,7 @@ export const HddFolderSubfolderTreeView: React.FC<HddFolderSubfolderTreeViewProp
 
                                     <div className="flex items-center gap-2 shrink-0">
                                       <span className="font-mono text-xs font-semibold text-slate-700 dark:text-slate-300">
-                                        {sub.sizeFormatted || formatBytes(sub.sizeBytes)}
+                                        {sub.sizeFormatted || formatBytes(subSizeBytes)}
                                       </span>
 
                                       <button
@@ -585,9 +589,9 @@ export const HddFolderSubfolderTreeView: React.FC<HddFolderSubfolderTreeViewProp
                                           openMoveModal(
                                             'subfolder',
                                             `${folder.name} > ${sub.name}`,
-                                            sub.path,
-                                            sub.sizeBytes,
-                                            sub.sizeFormatted || formatBytes(sub.sizeBytes),
+                                            sub.path || '',
+                                            subSizeBytes,
+                                            sub.sizeFormatted || formatBytes(subSizeBytes),
                                             drive.id
                                           )
                                         }

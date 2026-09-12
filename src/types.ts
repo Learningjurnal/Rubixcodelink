@@ -159,6 +159,8 @@ export interface StorageFolder {
   path?: string;
   markedForMove?: boolean;
   targetHddId?: string;
+  sampleImageUrl?: string;
+  sampleImageHidden?: boolean;
 }
 
 export interface HddTransferPlan {
@@ -176,8 +178,8 @@ export interface HddTransferPlan {
 }
 
 export interface StorageOverviewStats {
-  totalStorageTB: number;
-  usedStorageTB: number;
+  totalStorageTB: string; // pre-formatted via .toFixed() for display
+  usedStorageTB: string; // pre-formatted via .toFixed() for display
   usedPercentage: number;
   totalFolders: number;
   totalFiles: number;

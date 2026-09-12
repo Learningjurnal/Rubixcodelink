@@ -513,13 +513,13 @@ export async function parseStorageManifestExcel(
         const oldSubFile = existingSubfolder.files[existingSubFileIndex];
         const subSizeDiff = sizeBytesVal - oldSubFile.size;
         existingSubfolder.files[existingSubFileIndex] = fileItem;
-        existingSubfolder.sizeBytes += subSizeDiff;
+        existingSubfolder.sizeBytes = (existingSubfolder.sizeBytes ?? 0) + subSizeDiff;
       } else {
         existingSubfolder.files.push(fileItem);
-        existingSubfolder.sizeBytes += sizeBytesVal;
+        existingSubfolder.sizeBytes = (existingSubfolder.sizeBytes ?? 0) + sizeBytesVal;
         existingSubfolder.filesCount += 1;
       }
-      existingSubfolder.sizeFormatted = formatBytes(existingSubfolder.sizeBytes);
+      existingSubfolder.sizeFormatted = formatBytes(existingSubfolder.sizeBytes ?? 0);
     }
 
     // Accumulate drive usage with exact size diff
