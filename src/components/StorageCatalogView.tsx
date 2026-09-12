@@ -100,11 +100,37 @@ export const StorageCatalogView: React.FC<StorageCatalogViewProps> = ({
 
   // Excel/spreadsheet-style selection: Shift+click selects the contiguous
   // range from the last clicked folder to this one, added to the existing
-  // selection rather than replacing it.
+  // selection rather than replacing it. Used by the card-grid view's select
+  // button (a plain <button>, not a native checkbox — safe to preventDefault
+  // there, it has no native "checked" activation behavior to fight).
   const handleRowSelectClick = (e: React.MouseEvent, id: string, index: number) => {
     e.preventDefault();
     e.stopPropagation();
     if (e.shiftKey && lastClickedIndex !== null) {
+      const [start, end] = [lastClickedIndex, index].sort((a, b) => a - b);
+      const rangeIds = processedFolders.slice(start, end + 1).map(f => f.id);
+      setSelectedIds(prev => new Set([...prev, ...rangeIds]));
+    } else {
+      toggleSelectOne(id);
+      setLastClickedIndex(index);
+    }
+  };
+
+  // Table-row checkbox needs a different wiring than the card-grid button
+  // above: it's a real <input type="checkbox">, and using onClick +
+  // preventDefault() on a native checkbox fights the browser's own checkbox
+  // activation behavior (it flips `checked` natively, then reverts it
+  // because of preventDefault, before React's state update even commits) —
+  // this left the DOM checkbox's own `checked` property lagging one click
+  // behind React's selection state: clicking one row visually did nothing,
+  // and only the NEXT click elsewhere made the previous row appear checked.
+  // Driving this off a plain onChange (never preventDefault'd) avoids that
+  // fight — the shiftKey flag is instead captured on mousedown (always a
+  // real MouseEvent) since a checkbox's change event doesn't reliably carry
+  // modifier keys.
+  const shiftKeyOnMouseDown = React.useRef(false);
+  const handleRowCheckboxChange = (id: string, index: number) => {
+    if (shiftKeyOnMouseDown.current && lastClickedIndex !== null) {
       const [start, end] = [lastClickedIndex, index].sort((a, b) => a - b);
       const rangeIds = processedFolders.slice(start, end + 1).map(f => f.id);
       setSelectedIds(prev => new Set([...prev, ...rangeIds]));
@@ -298,8 +324,9 @@ export const StorageCatalogView: React.FC<StorageCatalogViewProps> = ({
                         <input
                           type="checkbox"
                           checked={isSelected}
-                          onChange={() => {}}
-                          onClick={e => handleRowSelectClick(e, folder.id, rowIndex)}
+                          onMouseDown={e => { shiftKeyOnMouseDown.current = e.shiftKey; }}
+                          onClick={e => e.stopPropagation()}
+                          onChange={() => handleRowCheckboxChange(folder.id, rowIndex)}
                           className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 w-4 h-4"
                         />
                       </td>

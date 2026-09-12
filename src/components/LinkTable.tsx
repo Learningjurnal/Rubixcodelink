@@ -94,9 +94,18 @@ export const LinkTable: React.FC<LinkTableProps> = ({
   // Ctrl/Cmd+click toggles one row without disturbing the rest — same as
   // a plain click here since these are independent checkboxes, kept for
   // familiarity with spreadsheet muscle memory.
-  const handleRowCheckboxClick = (e: React.MouseEvent, id: string, index: number) => {
-    e.preventDefault();
-    if (e.shiftKey && lastClickedIndex !== null) {
+  //
+  // Driven by the checkbox's onChange, not onClick + preventDefault(): the
+  // latter fights the browser's own native checkbox activation (it flips
+  // `checked`, then reverts it because of preventDefault, before React's
+  // state update even commits), leaving the DOM checkbox's own `checked`
+  // property lagging one click behind React's selection state — clicking
+  // one row visually did nothing until the next click elsewhere. The
+  // shiftKey flag is captured on mousedown (always a real MouseEvent, since
+  // a checkbox's change event doesn't reliably carry modifier keys).
+  const shiftKeyOnMouseDown = React.useRef(false);
+  const handleRowCheckboxChange = (id: string, index: number) => {
+    if (shiftKeyOnMouseDown.current && lastClickedIndex !== null) {
       const [start, end] = [lastClickedIndex, index].sort((a, b) => a - b);
       onSelectRange(items.slice(start, end + 1).map(i => i.id));
     } else {
@@ -449,8 +458,8 @@ export const LinkTable: React.FC<LinkTableProps> = ({
                         <input
                           type="checkbox"
                           checked={isSelected}
-                          onChange={() => {}}
-                          onClick={e => handleRowCheckboxClick(e, item.id, index)}
+                          onMouseDown={e => { shiftKeyOnMouseDown.current = e.shiftKey; }}
+                          onChange={() => handleRowCheckboxChange(item.id, index)}
                           className="rounded text-indigo-600 focus:ring-indigo-500 h-4 w-4 cursor-pointer"
                         />
                       </Tooltip>

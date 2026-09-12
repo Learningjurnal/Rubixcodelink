@@ -150,36 +150,51 @@ export const SubFolderCatalog: React.FC<SubFolderCatalogProps> = ({
   const allSelected = paginatedItems.length > 0 && paginatedItems.every(item => selectedIds.has(item.selectionKey));
 
   const toggleSelectAll = () => {
-    const newSelected = new Set(selectedIds);
-    if (allSelected) {
-      paginatedItems.forEach(item => newSelected.delete(item.selectionKey));
-    } else {
-      paginatedItems.forEach(item => newSelected.add(item.selectionKey));
-    }
-    setSelectedIds(newSelected);
+    setSelectedIds(prev => {
+      const newSelected = new Set(prev);
+      if (allSelected) {
+        paginatedItems.forEach(item => newSelected.delete(item.selectionKey));
+      } else {
+        paginatedItems.forEach(item => newSelected.add(item.selectionKey));
+      }
+      return newSelected;
+    });
   };
 
-  const toggleSelectOne = (id: string) => {
-    const newSelected = new Set(selectedIds);
-    if (newSelected.has(id)) {
-      newSelected.delete(id);
-    } else {
-      newSelected.add(id);
-    }
-    setSelectedIds(newSelected);
-  };
+  // Shift+click range-select needs the native MouseEvent's shiftKey flag,
+  // but reading it reliably means capturing it on mousedown (always a real
+  // MouseEvent) rather than on the checkbox's change event — React's
+  // ChangeEvent for a checkbox doesn't reliably carry modifier keys across
+  // browsers. Stored in a ref (not state) so capturing it never triggers an
+  // extra render.
+  const shiftKeyOnMouseDown = React.useRef(false);
 
-  // Excel/spreadsheet-style selection: Shift+click selects the contiguous
-  // range (within the current page) from the last clicked row to this one,
-  // added to the existing selection rather than replacing it.
-  const handleRowCheckboxClick = (e: React.MouseEvent, id: string, index: number) => {
-    e.preventDefault();
-    if (e.shiftKey && lastClickedIndex !== null) {
+  // Row checkboxes are driven by a plain, native onChange — NOT an onClick
+  // + preventDefault() hack. An earlier version called preventDefault() in
+  // onClick to fully own the toggle logic, which fights the browser's own
+  // checkbox activation behavior (the browser flips `checked` natively,
+  // then reverts it because of preventDefault, all before our handler's
+  // setState is even committed). That left the DOM checkbox's own
+  // `checked` property lagging one click behind whatever React's state
+  // said it should be — visually, clicking row 1 appeared to do nothing,
+  // and only the NEXT click (on row 2) would make row 1 finally show as
+  // checked. Letting the native change event drive this (and only mirroring
+  // its already-correct outcome into state) avoids that fight entirely.
+  const handleRowCheckboxChange = (id: string, index: number) => {
+    if (shiftKeyOnMouseDown.current && lastClickedIndex !== null) {
       const [start, end] = [lastClickedIndex, index].sort((a, b) => a - b);
       const rangeIds = paginatedItems.slice(start, end + 1).map(item => item.selectionKey);
       setSelectedIds(prev => new Set([...prev, ...rangeIds]));
     } else {
-      toggleSelectOne(id);
+      setSelectedIds(prev => {
+        const newSelected = new Set(prev);
+        if (newSelected.has(id)) {
+          newSelected.delete(id);
+        } else {
+          newSelected.add(id);
+        }
+        return newSelected;
+      });
       setLastClickedIndex(index);
     }
   };
@@ -434,8 +449,8 @@ export const SubFolderCatalog: React.FC<SubFolderCatalogProps> = ({
                           <input
                             type="checkbox"
                             checked={isSelected}
-                            onChange={() => {}}
-                            onClick={e => handleRowCheckboxClick(e, subId, idx)}
+                            onMouseDown={e => { shiftKeyOnMouseDown.current = e.shiftKey; }}
+                            onChange={() => handleRowCheckboxChange(subId, idx)}
                             className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 w-4 h-4"
                           />
                         </td>
