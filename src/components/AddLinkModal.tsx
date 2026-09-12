@@ -77,6 +77,7 @@ export const AddLinkModal: React.FC<AddLinkModalProps> = ({
       status,
       output: output || 'Single',
       region: region || 'LIVE',
+      counta: 1,
       note,
       tag: tag.trim(),
       diperbarui: dateStr,
