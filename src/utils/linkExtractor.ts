@@ -11,6 +11,24 @@ const HTML_LINK_REGEX = /<a\s+(?:[^>]*?\s+)?href=["'](https?:\/\/[^"']+)["'][^>]
 const GLOBAL_HTML_LINK_REGEX = /<a\s+(?:[^>]*?\s+)?href=["'](https?:\/\/[^"']+)["'][^>]*>(.*?)<\/a>/gi;
 const EXCEL_HYPERLINK_REGEX = /=HYPERLINK\(\s*["'](https?:\/\/[^"']+)["'](?:\s*,\s*["']([^"']*)["'])?\s*\)/i;
 
+// Protocol-less URLs: "www.domain.tld/path" or a bare "domain.tld/path".
+// Requires a "/" after the TLD (or being a "www." host) so ordinary text
+// like "versi 2.0" or "halaman 3.5" doesn't false-positive as a link.
+// Matches are later normalized by prefixing "https://".
+const WWW_URL_REGEX = /(?:^|[\s([{<])((?:www\.)[a-z0-9-]+(?:\.[a-z0-9-]+)*\.[a-z]{2,24}(?:\/[^\s<>"'()[\]{}]*)?)/i;
+const GLOBAL_WWW_URL_REGEX = /(?:^|[\s([{<])((?:www\.)[a-z0-9-]+(?:\.[a-z0-9-]+)*\.[a-z]{2,24}(?:\/[^\s<>"'()[\]{}]*)?)/gi;
+const BARE_DOMAIN_URL_REGEX = /(?:^|[\s([{<])([a-z0-9-]+(?:\.[a-z0-9-]+)*\.[a-z]{2,24}\/[^\s<>"'()[\]{}]*)/i;
+const GLOBAL_BARE_DOMAIN_URL_REGEX = /(?:^|[\s([{<])([a-z0-9-]+(?:\.[a-z0-9-]+)*\.[a-z]{2,24}\/[^\s<>"'()[\]{}]*)/gi;
+
+/**
+ * Normalizes a protocol-less match ("www.x.com/..." or "x.com/...") by
+ * adding "https://" so the rest of the app (normalizeUrl's `new URL(...)`,
+ * duplicate detection, display, etc.) works exactly like a real URL.
+ */
+function withProtocol(bareUrl: string): string {
+  return /^https?:\/\//i.test(bareUrl) ? bareUrl : `https://${bareUrl}`;
+}
+
 /**
  * Clean URL from trailing punctuation
  */
@@ -31,7 +49,9 @@ export function containsUrl(text: string): boolean {
     URL_REGEX.test(text) ||
     MARKDOWN_LINK_REGEX.test(text) ||
     HTML_LINK_REGEX.test(text) ||
-    EXCEL_HYPERLINK_REGEX.test(text)
+    EXCEL_HYPERLINK_REGEX.test(text) ||
+    WWW_URL_REGEX.test(text) ||
+    BARE_DOMAIN_URL_REGEX.test(text)
   );
 }
 
@@ -77,6 +97,22 @@ export function extractLinkFromText(raw: string): { name: string; url: string | 
     // Remove the URL from the string to get the name/label
     let name = trimmed.replace(urlMatch[1], '').trim();
     // Clean up surrounding punctuation like () [] - :
+    name = name
+      .replace(/^[\(\[\{<]+|[\)\]\}>]+$/g, '')
+      .replace(/^[-–—:\s]+|[-–—:\s]+$/g, '')
+      .trim();
+
+    return {
+      name: name || '',
+      url,
+    };
+  }
+
+  // 5. Check protocol-less URL: "www.domain.com/path" or a bare "domain.com/path"
+  const wwwMatch = trimmed.match(WWW_URL_REGEX) || trimmed.match(BARE_DOMAIN_URL_REGEX);
+  if (wwwMatch) {
+    const url = cleanUrl(withProtocol(wwwMatch[1]));
+    let name = trimmed.replace(wwwMatch[1], '').trim();
     name = name
       .replace(/^[\(\[\{<]+|[\)\]\}>]+$/g, '')
       .replace(/^[-–—:\s]+|[-–—:\s]+$/g, '')
@@ -144,6 +180,43 @@ export function extractAllLinksFromText(raw: string): { name: string; url: strin
       if (results.length === 0) {
         // Use remaining text as name
         contextualName = trimmed.replace(urlMatch[1], '').trim();
+        contextualName = contextualName
+          .replace(/^[\(\[\{<]+|[\)\]\}>]+$/g, '')
+          .replace(/^[-–—:\s]+|[-–—:\s]+$/g, '')
+          .trim();
+      }
+      results.push({ name: contextualName, url: u });
+      seenUrls.add(u.toLowerCase());
+    }
+  }
+
+  // 5. Check protocol-less URLs ("www.domain.com/path" or bare "domain.com/path")
+  let wwwMatch: RegExpExecArray | null;
+  const wwwRegex = new RegExp(GLOBAL_WWW_URL_REGEX);
+  while ((wwwMatch = wwwRegex.exec(trimmed)) !== null) {
+    const u = cleanUrl(withProtocol(wwwMatch[1]));
+    if (u && !seenUrls.has(u.toLowerCase())) {
+      let contextualName = '';
+      if (results.length === 0) {
+        contextualName = trimmed.replace(wwwMatch[1], '').trim();
+        contextualName = contextualName
+          .replace(/^[\(\[\{<]+|[\)\]\}>]+$/g, '')
+          .replace(/^[-–—:\s]+|[-–—:\s]+$/g, '')
+          .trim();
+      }
+      results.push({ name: contextualName, url: u });
+      seenUrls.add(u.toLowerCase());
+    }
+  }
+
+  let bareMatch: RegExpExecArray | null;
+  const bareRegex = new RegExp(GLOBAL_BARE_DOMAIN_URL_REGEX);
+  while ((bareMatch = bareRegex.exec(trimmed)) !== null) {
+    const u = cleanUrl(withProtocol(bareMatch[1]));
+    if (u && !seenUrls.has(u.toLowerCase())) {
+      let contextualName = '';
+      if (results.length === 0) {
+        contextualName = trimmed.replace(bareMatch[1], '').trim();
         contextualName = contextualName
           .replace(/^[\(\[\{<]+|[\)\]\}>]+$/g, '')
           .replace(/^[-–—:\s]+|[-–—:\s]+$/g, '')
