@@ -18,7 +18,17 @@ export const ToastContainer: React.FC<ToastProps> = ({ toasts, onDismiss }) => {
   if (toasts.length === 0) return null;
 
   return (
-    <div className="fixed bottom-5 right-5 z-50 flex flex-col gap-2 max-w-md w-full px-4 pointer-events-none">
+    // top-right, not bottom-right: the bulk-action toolbars in
+    // SubFolderCatalog/StorageCatalogView/BatchActionsBar are `fixed
+    // bottom-*` overlays that can span most of the viewport width at
+    // common laptop resolutions (1440x900, 1280x800, 1536x864 all
+    // overlap a bottom-right toast in testing — only very wide viewports
+    // like 1920x1080 happened not to). A toast landing on top of that
+    // toolbar is easy to miss even though it's technically still the
+    // higher z-index, which is very likely why "menghapus" looked like it
+    // produced no feedback at all. Top-right is never in the same region
+    // as any bottom-anchored toolbar, at any viewport width.
+    <div className="fixed top-5 right-5 z-50 flex flex-col gap-2 max-w-md w-full px-4 pointer-events-none">
       {toasts.map(toast => {
         let bg = 'bg-slate-900 text-white';
         let Icon = Info;
