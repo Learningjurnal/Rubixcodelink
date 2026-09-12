@@ -28,12 +28,19 @@ interface FlatSubfolderItem extends StorageSubfolder {
   // Computed once when flattening (below) and carried through filtering/
   // sorting/pagination unchanged. Every place that needs to key a subfolder
   // for selection (header "select all", toggle-one, Shift+click range,
-  // row rendering) reads this SAME value — previously three different
-  // ad-hoc fallbacks (`item.id || item.name` in some places, a
-  // `${parentId}-${name}-${idx}` computed fresh in others) could disagree
-  // with each other whenever a subfolder had no real `.id`, so an item
-  // could be added to selectedIds under one key while its checkbox checked
-  // state was read under a different key — making it look unresponsive.
+  // row rendering) reads this SAME value.
+  //
+  // Always prefixed with the parent folder's id, even when `sub.id` looks
+  // like a real id. Reason: some subfolder ids are generated upstream from
+  // only `hddId + name` (see storageExcelHelper.ts), with no parent-folder
+  // scoping — so two DIFFERENT subfolders named e.g. "Photos" under two
+  // different top-level folders on the same HDD can carry the exact same
+  // `sub.id`. Without the folder prefix here, those two unrelated rows
+  // would collide on the same selectionKey/React key, so clicking one row's
+  // checkbox could visibly toggle a completely different row elsewhere in
+  // the table (or even on another page) — this is what "klik nyasar ke
+  // baris lain" was. Prefixing with folder.id keeps each row unique
+  // regardless of whether the upstream id itself is unique.
   selectionKey: string;
 }
 
@@ -85,7 +92,7 @@ export const SubFolderCatalog: React.FC<SubFolderCatalogProps> = ({
           list.push({
             ...sub,
             parentFolder: folder,
-            selectionKey: sub.id || `${folder.id}-${sub.name}-${subIdx}`,
+            selectionKey: `${folder.id}::${sub.id || `idx-${subIdx}-${sub.name}`}`,
           });
         });
       }
