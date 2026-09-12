@@ -489,7 +489,12 @@ export async function parseStorageManifestExcel(
       let existingSubfolder = folder.subfolders.find(s => s.name.toLowerCase() === subfolderVal.toLowerCase());
       if (!existingSubfolder) {
         existingSubfolder = {
-          id: `sub-${matchedHddId}-${subfolderVal.replace(/[^a-zA-Z0-9]/g, '_')}`,
+          // Scoped by folder.id (not just hddId) so two different top-level
+          // folders on the same HDD with an identically-named subfolder
+          // (e.g. both have a "Photos" subfolder) don't end up with the
+          // same subfolder id — that collision breaks per-row selection in
+          // Storage Management's Subfolder Catalog (SubFolderCatalog.tsx).
+          id: `sub-${folder.id}-${subfolderVal.replace(/[^a-zA-Z0-9]/g, '_')}`,
           name: subfolderVal,
           path: `${folder.name}\\${subfolderVal}`,
           sizeBytes: 0,
