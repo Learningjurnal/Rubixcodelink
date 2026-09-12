@@ -25,6 +25,16 @@ import { formatBytes } from '../utils/storageExcelHelper';
 
 interface FlatSubfolderItem extends StorageSubfolder {
   parentFolder: StorageFolder;
+  // Computed once when flattening (below) and carried through filtering/
+  // sorting/pagination unchanged. Every place that needs to key a subfolder
+  // for selection (header "select all", toggle-one, Shift+click range,
+  // row rendering) reads this SAME value — previously three different
+  // ad-hoc fallbacks (`item.id || item.name` in some places, a
+  // `${parentId}-${name}-${idx}` computed fresh in others) could disagree
+  // with each other whenever a subfolder had no real `.id`, so an item
+  // could be added to selectedIds under one key while its checkbox checked
+  // state was read under a different key — making it look unresponsive.
+  selectionKey: string;
 }
 
 interface SubFolderCatalogProps {
@@ -71,10 +81,11 @@ export const SubFolderCatalog: React.FC<SubFolderCatalogProps> = ({
     const list: FlatSubfolderItem[] = [];
     folders.forEach(folder => {
       if (folder.subfolders && folder.subfolders.length > 0) {
-        folder.subfolders.forEach(sub => {
+        folder.subfolders.forEach((sub, subIdx) => {
           list.push({
             ...sub,
             parentFolder: folder,
+            selectionKey: sub.id || `${folder.id}-${sub.name}-${subIdx}`,
           });
         });
       }
@@ -129,14 +140,14 @@ export const SubFolderCatalog: React.FC<SubFolderCatalogProps> = ({
     return filteredSubfolders.slice(start, start + itemsPerPage);
   }, [filteredSubfolders, currentPage, itemsPerPage]);
 
-  const allSelected = paginatedItems.length > 0 && paginatedItems.every(item => selectedIds.has(item.id || item.name));
+  const allSelected = paginatedItems.length > 0 && paginatedItems.every(item => selectedIds.has(item.selectionKey));
 
   const toggleSelectAll = () => {
     const newSelected = new Set(selectedIds);
     if (allSelected) {
-      paginatedItems.forEach(item => newSelected.delete(item.id || item.name));
+      paginatedItems.forEach(item => newSelected.delete(item.selectionKey));
     } else {
-      paginatedItems.forEach(item => newSelected.add(item.id || item.name));
+      paginatedItems.forEach(item => newSelected.add(item.selectionKey));
     }
     setSelectedIds(newSelected);
   };
@@ -158,7 +169,7 @@ export const SubFolderCatalog: React.FC<SubFolderCatalogProps> = ({
     e.preventDefault();
     if (e.shiftKey && lastClickedIndex !== null) {
       const [start, end] = [lastClickedIndex, index].sort((a, b) => a - b);
-      const rangeIds = paginatedItems.slice(start, end + 1).map(item => item.id || item.name);
+      const rangeIds = paginatedItems.slice(start, end + 1).map(item => item.selectionKey);
       setSelectedIds(prev => new Set([...prev, ...rangeIds]));
     } else {
       toggleSelectOne(id);
@@ -167,8 +178,8 @@ export const SubFolderCatalog: React.FC<SubFolderCatalogProps> = ({
   };
 
   const handleSaveEdit = () => {
-    if (!editingItem) return;
-    onUpdateSubfolder(editingItem.parentFolder.id, editingItem.id || editingItem.name, {
+    if (!editingItem || !editingItem.id) return;
+    onUpdateSubfolder(editingItem.parentFolder.id, editingItem.id, {
       name: editName,
       description: editDesc,
       sampleImageUrl: editImgUrl,
@@ -178,10 +189,15 @@ export const SubFolderCatalog: React.FC<SubFolderCatalogProps> = ({
 
   // Resolve the current selection into {parentFolderId, subfolderId} pairs
   // for the bulk handlers, which need the parent to locate each subfolder.
+  // Filters by selectionKey (what's actually tracked as selected) but the
+  // payload itself must carry the real `.id` — a synthetic fallback key
+  // would never match anything server-side, so an item without a real id
+  // (extremely unlikely in practice; every creation path assigns one) is
+  // silently excluded from bulk actions rather than sent as a bad id.
   const getSelectedPayload = () =>
     allSubfolders
-      .filter(s => selectedIds.has(s.id || s.name))
-      .map(s => ({ parentFolderId: s.parentFolder.id, subfolderId: s.id || s.name }));
+      .filter(s => selectedIds.has(s.selectionKey) && s.id)
+      .map(s => ({ parentFolderId: s.parentFolder.id, subfolderId: s.id as string }));
 
   const clearSelection = () => setSelectedIds(new Set());
 
@@ -379,7 +395,7 @@ export const SubFolderCatalog: React.FC<SubFolderCatalogProps> = ({
                   </tr>
                 ) : (
                   paginatedItems.map((sub, idx) => {
-                    const subId = sub.id || `${sub.parentFolder.id}-${sub.name}-${idx}`;
+                    const subId = sub.selectionKey;
                     const isSelected = selectedIds.has(subId);
                     const sizeB = sub.sizeBytes || 0;
                     const sizeFormatted = sub.sizeFormatted || formatBytes(sizeB);
@@ -494,8 +510,9 @@ export const SubFolderCatalog: React.FC<SubFolderCatalogProps> = ({
                             <button
                               type="button"
                               onClick={() => {
+                                if (!sub.id) return;
                                 if (window.confirm(`Hapus subfolder "${sub.name}"?`)) {
-                                  onDeleteSubfolder(sub.parentFolder.id, sub.id || sub.name);
+                                  onDeleteSubfolder(sub.parentFolder.id, sub.id);
                                 }
                               }}
                               className="p-1.5 bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 hover:bg-rose-100 rounded-lg transition"
@@ -531,7 +548,7 @@ export const SubFolderCatalog: React.FC<SubFolderCatalogProps> = ({
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-xs">
                 {paginatedItems.map((sub, idx) => {
-                  const subId = sub.id || `${sub.parentFolder.id}-${sub.name}-${idx}`;
+                  const subId = sub.selectionKey;
                   const sizeB = sub.sizeBytes || 0;
                   const sizeFormatted = sub.sizeFormatted || formatBytes(sizeB);
 
@@ -587,7 +604,7 @@ export const SubFolderCatalog: React.FC<SubFolderCatalogProps> = ({
         /* CATALOG CARD GRID VIEW */
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {paginatedItems.map((sub, idx) => {
-            const subId = sub.id || `${sub.parentFolder.id}-${sub.name}-${idx}`;
+            const subId = sub.selectionKey;
             const sizeB = sub.sizeBytes || 0;
             const sizeFormatted = sub.sizeFormatted || formatBytes(sizeB);
             const fileCount = sub.filesCount || sub.files?.length || 0;
