@@ -33,15 +33,18 @@ import { LinkItem, AppSettings, StorageFolder, StorageFile } from '../types';
 const configModules = import.meta.glob('../../firebase-applet-config.json', { eager: true });
 const rawFirebaseConfig = (configModules['../../firebase-applet-config.json'] as { default?: Record<string, string> })?.default || {};
 
-// Embedded default public Firebase client configuration for seamless GitHub / Web deployment
+// No hardcoded fallback credentials: a real Firebase project's keys must
+// never live in source control. Each deployment (Vercel, local, GitHub
+// Pages, ...) must supply its own VITE_FIREBASE_* env vars, or fall back to
+// the gitignored firebase-applet-config.json for local dev.
 const DEFAULT_FIREBASE_CONFIG = {
-  apiKey: 'AIzaSyAjO1QrHyIuR8T0NM07NWxAgbwjnrbSYXk',
-  authDomain: 'zinc-snowfall-6lcf1.firebaseapp.com',
-  projectId: 'zinc-snowfall-6lcf1',
-  firestoreDatabaseId: 'ai-studio-linkmanagementda-6268afbb-4df8-4a7c-a72e-1cc23fc1e26b',
-  storageBucket: 'zinc-snowfall-6lcf1.firebasestorage.app',
-  messagingSenderId: '1097630283503',
-  appId: '1:1097630283503:web:eedb1b5fafd56ac16b4d1a',
+  apiKey: '',
+  authDomain: '',
+  projectId: '',
+  firestoreDatabaseId: '',
+  storageBucket: '',
+  messagingSenderId: '',
+  appId: '',
 };
 
 // Construct Firebase configuration with priority: ENV -> local JSON -> default config
@@ -59,7 +62,14 @@ const firebaseConfig = {
 let app: ReturnType<typeof initializeApp>;
 try {
   const dummyConfig = { apiKey: 'dummy-api-key', projectId: 'dummy-project' };
-  const effectiveConfig = firebaseConfig.apiKey && firebaseConfig.projectId ? firebaseConfig : dummyConfig;
+  const hasRealConfig = Boolean(firebaseConfig.apiKey && firebaseConfig.projectId);
+  if (!hasRealConfig) {
+    console.warn(
+      'Firebase config is missing (no VITE_FIREBASE_* env vars set). ' +
+        'Auth and Firestore will not work until the deployment env is configured.'
+    );
+  }
+  const effectiveConfig = hasRealConfig ? firebaseConfig : dummyConfig;
   app = getApps().length === 0 ? initializeApp(effectiveConfig) : getApp();
 } catch (e) {
   console.warn('Firebase initialization warning:', e);
