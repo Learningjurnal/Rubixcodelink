@@ -146,7 +146,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onSuccess, onDirectLogin
           </h1>
           <p className="text-xs sm:text-sm text-slate-300 mt-2 max-w-md mx-auto leading-relaxed">
             Sistem Single-User untuk manajemen terpadu <strong className="text-blue-400">Penyimpanan Berkas</strong> dan{' '}
-            <strong className="text-indigo-400">Tautan Spreadsheet</strong> dengan database Cloud Firestore privat.
+            <strong className="text-indigo-400">Tautan Spreadsheet</strong> dengan database Cloud Supabase privat.
           </p>
 
           {/* Single User Feature Highlights */}

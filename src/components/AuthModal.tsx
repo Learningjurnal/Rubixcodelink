@@ -96,7 +96,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
                 {mode === 'login' ? 'Masuk ke Database' : 'Daftar Akun Pengguna'}
               </h3>
               <p className="text-xs text-slate-300">
-                Akses tersinkronisasi Cloud Firestore
+                Akses tersinkronisasi Cloud Supabase
               </p>
             </div>
           </div>

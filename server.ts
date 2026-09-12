@@ -2,6 +2,7 @@ import express from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
 import { runCategorization } from "./server/categorize";
+import { verifyRequestUser } from "./server/auth";
 
 async function startServer() {
   const app = express();
@@ -14,8 +15,15 @@ async function startServer() {
     res.json({ status: "ok", timestamp: Date.now() });
   });
 
-  // AI Smart Categorization & Tagging Endpoint
+  // AI Smart Categorization & Tagging Endpoint. Requires a valid Supabase
+  // session — this calls a paid third-party API (Gemini) using a
+  // server-side key shared across the whole deployment.
   app.post("/api/ai/categorize", async (req, res) => {
+    const user = await verifyRequestUser(req.headers.authorization);
+    if (!user) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
     try {
       const result = await runCategorization(req.body || {});
       res.json({ success: true, result });
