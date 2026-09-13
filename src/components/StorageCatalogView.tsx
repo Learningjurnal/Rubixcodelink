@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Search,
   ArrowUpDown,
@@ -12,6 +12,8 @@ import {
   Check,
   X,
   CheckSquare,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import { StorageFolder, HardDriveProfile } from '../types';
 import { formatBytes } from '../utils/storageExcelHelper';
@@ -77,6 +79,27 @@ export const StorageCatalogView: React.FC<StorageCatalogViewProps> = ({
 
     return result;
   }, [folders, searchQuery, sortBy]);
+
+  // Pagination — this view had no page limit at all (unlike LinkTable and
+  // SubFolderCatalog), so a large folder catalog rendered every row/card at
+  // once. Selection (`allSelected`, shift-click range) deliberately still
+  // operates on the full `processedFolders` list below, not the paginated
+  // slice, so "select all" and range-select keep working across pages.
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(50);
+  const totalPages = Math.ceil(processedFolders.length / itemsPerPage) || 1;
+  const paginatedFolders = useMemo(
+    () => processedFolders.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage),
+    [processedFolders, currentPage, itemsPerPage]
+  );
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, sortBy]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) setCurrentPage(totalPages);
+  }, [totalPages, currentPage]);
 
   const allSelected = processedFolders.length > 0 && processedFolders.every(f => selectedIds.has(f.id));
 
@@ -305,7 +328,8 @@ export const StorageCatalogView: React.FC<StorageCatalogViewProps> = ({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-xs">
-                {processedFolders.map((folder, rowIndex) => {
+                {paginatedFolders.map((folder, localIndex) => {
+                  const rowIndex = (currentPage - 1) * itemsPerPage + localIndex;
                   const subcount = folder.subfolders?.length || folder.foldersCount || 0;
                   const filecount = folder.filesCount || 0;
                   const sizeFormatted = folder.usedStorageFormatted || formatBytes(folder.usedBytes);
@@ -430,7 +454,8 @@ export const StorageCatalogView: React.FC<StorageCatalogViewProps> = ({
       ) : (
         /* CATALOG PRODUCT CARD GRID VIEW */
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {processedFolders.map((folder, cardIndex) => {
+          {paginatedFolders.map((folder, localIndex) => {
+            const cardIndex = (currentPage - 1) * itemsPerPage + localIndex;
             const subcount = folder.subfolders?.length || folder.foldersCount || 0;
             const filecount = folder.filesCount || 0;
             const sizeFormatted = folder.usedStorageFormatted || formatBytes(folder.usedBytes);
@@ -520,6 +545,52 @@ export const StorageCatalogView: React.FC<StorageCatalogViewProps> = ({
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Pagination Footer */}
+      {processedFolders.length > 0 && totalPages > 1 && (
+        <div className="flex flex-wrap items-center justify-between gap-3 px-2">
+          <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+            <span>Tampilkan</span>
+            <select
+              value={itemsPerPage}
+              onChange={e => {
+                setItemsPerPage(Number(e.target.value));
+                setCurrentPage(1);
+              }}
+              className="px-2 py-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-bold text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-indigo-600"
+            >
+              <option value={25}>25</option>
+              <option value={50}>50</option>
+              <option value={100}>100</option>
+              <option value={500}>500</option>
+            </select>
+            <span>per halaman</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              disabled={currentPage === 1}
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              className="p-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed transition"
+              title="Halaman Sebelumnya"
+            >
+              <ChevronLeft className="w-3.5 h-3.5" />
+            </button>
+            <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">
+              Halaman {currentPage} dari {totalPages}
+            </span>
+            <button
+              type="button"
+              disabled={currentPage === totalPages}
+              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+              className="p-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed transition"
+              title="Halaman Berikutnya"
+            >
+              <ChevronRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
         </div>
       )}
 
