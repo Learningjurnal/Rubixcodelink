@@ -125,6 +125,12 @@ export default function App() {
   });
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
 
+  // Guards the one-time self-healing pass in repairMissingSubfolderIds
+  // (defined below) against re-entry: writing the repaired data back to
+  // Supabase itself triggers a realtime refetch, which would otherwise
+  // call the same repair pass again on its own output.
+  const idRepairAttemptedRef = useRef(false);
+
   // Storage Management State - Isolated per authenticated user
   const [folders, setFolders] = useState<StorageFolder[]>(() => {
     try {
@@ -390,6 +396,59 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
+  // Self-heals subfolders that were persisted without a real database `id`
+  // (data imported by an older version of the Excel-import code, before id
+  // generation was solidified — confirmed live: a user's bulk-delete hit
+  // exactly this case, 18/18 selected subfolders with no id, so the
+  // backend correctly refused to touch them). Every subfolder-targeting
+  // action (edit, delete, move) needs a real id to find its target inside
+  // the parent folder's `subfolders` JSONB array, so these rows are
+  // otherwise permanently stuck — unselectable for bulk actions and
+  // undeletable one at a time. Runs once per session (guarded by
+  // idRepairAttemptedRef), assigns each id-less subfolder a fresh unique
+  // id, and writes the repaired array back to Supabase per affected
+  // folder — same one-write-per-parent batching as the bulk handlers
+  // below, for the same stale-closure reason.
+  const repairMissingSubfolderIds = async (foldersToCheck: StorageFolder[]) => {
+    if (idRepairAttemptedRef.current || !currentUser) return;
+    idRepairAttemptedRef.current = true;
+
+    const patches: { folderId: string; subfolders: StorageSubfolder[] }[] = [];
+    let repairedCount = 0;
+
+    foldersToCheck.forEach(folder => {
+      const subs = folder.subfolders || [];
+      if (subs.length === 0 || subs.every(s => s.id)) return;
+      const repaired = subs.map((s, idx) =>
+        s.id ? s : { ...s, id: `sub-repair-${folder.id}-${idx}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}` }
+      );
+      repairedCount += repaired.length - subs.filter(s => s.id).length;
+      patches.push({ folderId: folder.id, subfolders: repaired });
+    });
+
+    if (patches.length === 0) return;
+
+    try {
+      for (const p of patches) {
+        await updateUserFolderInFirestore(currentUser.uid, p.folderId, { subfolders: p.subfolders });
+      }
+      setFolders(prev =>
+        prev.map(f => {
+          const p = patches.find(x => x.folderId === f.id);
+          return p ? { ...f, subfolders: p.subfolders } : f;
+        })
+      );
+      addToast(
+        'success',
+        `${repairedCount} subfolder lama tanpa ID database berhasil diperbaiki di ${patches.length} folder — sekarang bisa dihapus/diedit normal.`
+      );
+    } catch (e: any) {
+      console.error('Failed to repair missing subfolder ids:', e);
+      idRepairAttemptedRef.current = false; // allow retry on the next folders refetch
+      addToast('error', `Gagal memperbaiki ID subfolder lama: ${e?.message || 'periksa koneksi/sesi login Anda.'}`);
+    }
+  };
+
   // 2. User-isolated Supabase Data Subscriptions
   useEffect(() => {
     if (!currentUser) {
@@ -406,6 +465,7 @@ export default function App() {
       userFolders => {
         if (userFolders && userFolders.length > 0) {
           setFolders(userFolders);
+          repairMissingSubfolderIds(userFolders);
         } else {
           setFolders(prev => (prev.length > 0 ? prev : INITIAL_SAMPLE_FOLDERS));
         }
@@ -1147,6 +1207,7 @@ export default function App() {
     setFolders([]);
     setItems([]);
     setActiveTab('dashboard_hub');
+    idRepairAttemptedRef.current = false; // allow the next signed-in user's folders to be checked too
     addToast('info', 'Anda telah keluar dari akun.');
   };
 
