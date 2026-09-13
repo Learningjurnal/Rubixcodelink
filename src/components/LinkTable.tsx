@@ -421,6 +421,20 @@ export const LinkTable: React.FC<LinkTableProps> = ({
 
                 const regionColorKey = getOptionColor(item.region, undefined, DEFAULT_REGION_COLORS);
                 const regionDef = PRESET_COLORS[regionColorKey] || PRESET_COLORS.slate;
+                // A native <select> only highlights an option whose value
+                // matches `value` byte-for-byte — case included. Region
+                // codes added via Settings get force-uppercased ("cosplay"
+                // -> "COSPLAY"), but a value imported from Excel keeps
+                // whatever case was actually in the file ("Cosplay"). Those
+                // two never matched, so the dropdown silently fell back to
+                // showing its first option ("LIVE") even though item.region
+                // itself was correctly "Cosplay" all along — reported as
+                // "region salah baca jadi LIVE", but the underlying data
+                // was never wrong, only this display. Resolve to whichever
+                // configured option matches case-insensitively so it
+                // displays correctly regardless of the stored casing.
+                const matchedRegionOption =
+                  settings.regionOptions.find(r => r.toLowerCase() === (item.region || '').toLowerCase()) || item.region;
 
                 const fileTypeInfo = detectFileExtensionType(item.link, item.name);
 
@@ -575,7 +589,7 @@ export const LinkTable: React.FC<LinkTableProps> = ({
                       {onUpdateRegion ? (
                         <Tooltip content="Pilih Region" subtitle="Tentukan wilayah target tautan" position="top">
                           <select
-                            value={item.region}
+                            value={matchedRegionOption}
                             onChange={e => onUpdateRegion(item.id, e.target.value)}
                             className={`px-2.5 py-0.5 rounded-md text-[11px] font-semibold border cursor-pointer outline-none transition ${regionDef.selectClass}`}
                           >

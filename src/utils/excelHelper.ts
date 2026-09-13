@@ -115,7 +115,15 @@ export async function parseExcelFile(
     }
 
     const outputVal = outputCol !== -1 && row[outputCol] ? String(row[outputCol]).trim() : 'Single';
-    const regionVal = regionCol !== -1 && row[regionCol] ? String(row[regionCol]).trim() : 'LIVE';
+    // Uppercased to match the app's own convention for region codes
+    // (LIVE, ASIA, US, EU, ID, GLOBAL — and Settings force-uppercases any
+    // custom region a user adds there too). Excel data keeps whatever case
+    // was actually typed ("Cosplay"), which a native <select> only
+    // highlights on an exact, case-sensitive match — normalizing here
+    // keeps imported data consistent with every region value added any
+    // other way, rather than relying solely on the display-layer
+    // case-insensitive fallback in LinkTable.
+    const regionVal = regionCol !== -1 && row[regionCol] ? String(row[regionCol]).trim().toUpperCase() : 'LIVE';
     const noteVal = noteCol !== -1 && row[noteCol] ? String(row[noteCol]).trim() : '';
     const tagVal = tagCol !== -1 && row[tagCol] ? String(row[tagCol]).trim() : '';
     const rawCounta = countaCol !== -1 && row[countaCol] !== undefined ? Number(row[countaCol]) : 1;
