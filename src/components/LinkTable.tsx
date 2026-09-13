@@ -168,7 +168,6 @@ export const LinkTable: React.FC<LinkTableProps> = ({
               <option value="status" className="dark:bg-slate-800 dark:text-slate-200">Status</option>
               <option value="output" className="dark:bg-slate-800 dark:text-slate-200">Output</option>
               <option value="region" className="dark:bg-slate-800 dark:text-slate-200">Region</option>
-              <option value="counta" className="dark:bg-slate-800 dark:text-slate-200">Counta</option>
               <option value="note" className="dark:bg-slate-800 dark:text-slate-200">Note</option>
             </select>
             <Tooltip
@@ -344,19 +343,6 @@ export const LinkTable: React.FC<LinkTableProps> = ({
                 </div>
               </th>
 
-              {/* Counta Column */}
-              <th
-                className="py-3.5 px-3 w-24 border-r border-slate-200/80 dark:border-slate-800 cursor-pointer hover:bg-slate-200/60 dark:hover:bg-slate-900/90 transition text-center"
-                onClick={() => onSort('counta')}
-              >
-                <div className="flex items-center justify-between">
-                  <span>Counta</span>
-                  {sortField === 'counta' && (
-                    <ArrowUpDown className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
-                  )}
-                </div>
-              </th>
-
               {/* Note Column */}
               <th
                 className="py-3.5 px-4 min-w-[320px] max-w-[500px] border-r border-slate-200/80 dark:border-slate-800 cursor-pointer hover:bg-slate-200/60 dark:hover:bg-slate-900/90 transition"
@@ -394,7 +380,7 @@ export const LinkTable: React.FC<LinkTableProps> = ({
           <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
             {items.length === 0 ? (
               <tr>
-                <td colSpan={9} className="py-20 text-center text-slate-400 dark:text-slate-500">
+                <td colSpan={8} className="py-20 text-center text-slate-400 dark:text-slate-500">
                   <div className="max-w-md mx-auto p-8 rounded-3xl bg-slate-50/80 dark:bg-slate-800/40 border border-slate-200/70 dark:border-slate-800 shadow-xs space-y-4">
                     <div className="relative w-16 h-16 mx-auto flex items-center justify-center rounded-2xl bg-indigo-50 dark:bg-indigo-950/70 text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-900 shadow-xs">
                       <Search className="w-8 h-8 animate-pulse" />
@@ -605,11 +591,6 @@ export const LinkTable: React.FC<LinkTableProps> = ({
                           {item.region}
                         </span>
                       )}
-                    </td>
-
-                    {/* Counta */}
-                    <td className="py-2.5 px-3 text-center font-medium text-slate-600 dark:text-slate-400 border-r border-slate-200/80 dark:border-slate-800">
-                      {item.counta}
                     </td>
 
                     {/* Note (Editable with quick presets from settings) */}
