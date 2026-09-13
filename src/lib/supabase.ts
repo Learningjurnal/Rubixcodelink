@@ -239,6 +239,7 @@ function subscribeToUserRows<T>(
   onError?: (err: Error) => void
 ): () => void {
   let cancelled = false;
+  let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
   async function fetchAndEmit() {
     let query = supabase.from(table).select('*').eq('user_id', userId);
@@ -253,6 +254,24 @@ function subscribeToUserRows<T>(
     onUpdate((data || []).map(mapRow));
   }
 
+  // Every postgres_changes event triggers a full re-select of the table
+  // (see comment above), not a patch of the one changed row. Left
+  // undebounced, a bulk operation (import hundreds of links, bulk-delete,
+  // the chunked batch update above) fires one full-table refetch PER ROW
+  // changed — a 500-row import meant ~500 redundant refetches racing each
+  // other while the import was still in flight. Debouncing collapses a
+  // burst of change events into one refetch shortly after the burst
+  // settles; the very first fetch below (on subscribe) is NOT debounced so
+  // initial load stays instant.
+  const REFETCH_DEBOUNCE_MS = 400;
+  function scheduleRefetch() {
+    if (debounceTimer) clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => {
+      debounceTimer = null;
+      fetchAndEmit();
+    }, REFETCH_DEBOUNCE_MS);
+  }
+
   fetchAndEmit();
 
   const channel: RealtimeChannel = supabase
@@ -260,12 +279,13 @@ function subscribeToUserRows<T>(
     .on(
       'postgres_changes',
       { event: '*', schema: 'public', table, filter: `user_id=eq.${userId}` },
-      () => fetchAndEmit()
+      () => scheduleRefetch()
     )
     .subscribe();
 
   return () => {
     cancelled = true;
+    if (debounceTimer) clearTimeout(debounceTimer);
     supabase.removeChannel(channel);
   };
 }
@@ -391,20 +411,32 @@ export async function updateUserLinkInFirestore(
 }
 
 /**
- * Applies distinct per-row changes in one round-trip where possible.
- * Note: unlike a Firestore writeBatch, these individual updates are not
+ * Applies distinct per-row changes, chunked so a large bulk edit (e.g.
+ * changing region/output across hundreds of selected links) doesn't fire
+ * every row's request at once: an earlier version ran the whole list
+ * through a single Promise.all with no concurrency cap, which meant a
+ * selection of hundreds/thousands of rows sent that many simultaneous
+ * requests and risked hitting Supabase/PostgREST connection limits —
+ * failing some rows silently mid-batch.
+ *
+ * Note: unlike a Firestore writeBatch, these updates are still not
  * committed as a single atomic transaction — if one fails partway,
- * earlier updates in the same call are not rolled back. Wrap in a
- * Postgres function via RPC later if atomicity across rows becomes
- * important.
+ * earlier chunks already applied are not rolled back. Wrap in a Postgres
+ * function via RPC later if atomicity across rows becomes important.
  */
 export async function batchUpdateItemsInFirestore(
   updates: { id: string; changes: Partial<LinkItem> }[],
   userId: string
 ): Promise<number> {
   if (!updates || updates.length === 0) return 0;
-  await Promise.all(updates.map(({ id, changes }) => updateUserLinkInFirestore(userId, id, changes)));
-  return updates.length;
+  const CHUNK_SIZE = 50;
+  let totalUpdated = 0;
+  for (let i = 0; i < updates.length; i += CHUNK_SIZE) {
+    const chunk = updates.slice(i, i + CHUNK_SIZE);
+    await Promise.all(chunk.map(({ id, changes }) => updateUserLinkInFirestore(userId, id, changes)));
+    totalUpdated += chunk.length;
+  }
+  return totalUpdated;
 }
 
 export async function deleteUserLinkFromFirestore(userId: string, id: string): Promise<void> {

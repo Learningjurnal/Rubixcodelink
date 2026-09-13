@@ -3,6 +3,7 @@ import path from "path";
 import { createServer as createViteServer } from "vite";
 import { runCategorization } from "./server/categorize";
 import { verifyRequestUser } from "./server/auth";
+import { checkAndRecordAiUsage, getBearerToken } from "./server/rateLimit";
 
 async function startServer() {
   const app = express();
@@ -17,11 +18,21 @@ async function startServer() {
 
   // AI Smart Categorization & Tagging Endpoint. Requires a valid Supabase
   // session — this calls a paid third-party API (Gemini) using a
-  // server-side key shared across the whole deployment.
+  // server-side key shared across the whole deployment — and is further
+  // capped by a per-user rate limit (server/rateLimit.ts) so a signed-in
+  // caller still can't run up the bill without limit.
   app.post("/api/ai/categorize", async (req, res) => {
+    const token = getBearerToken(req.headers.authorization);
     const user = await verifyRequestUser(req.headers.authorization);
-    if (!user) {
+    if (!user || !token) {
       res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+    const rateLimit = await checkAndRecordAiUsage(token, user.id);
+    if (!rateLimit.allowed) {
+      res.status(429).json({
+        error: `Terlalu banyak permintaan AI dalam waktu singkat. Coba lagi dalam ${rateLimit.retryAfterSeconds} detik.`,
+      });
       return;
     }
     try {

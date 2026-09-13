@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   PieChart,
   Pie,
@@ -15,6 +15,7 @@ import {
 } from 'recharts';
 import { BarChart3, PieChart as PieIcon, TrendingUp, Globe, Layers } from 'lucide-react';
 import { LinkItem } from '../types';
+import { parseDateToTimestamp } from '../utils/dateHelper';
 import { ActivityHeatmap } from './ActivityHeatmap';
 
 interface AnalyticsChartsProps {
@@ -29,9 +30,44 @@ const STATUS_COLORS: Record<string, string> = {
   'Web Inactive': '#ef4444',    // red-500
 };
 
-const DEFAULT_COLOR = '#6366f1'; // indigo-500
+// Status names not in STATUS_COLORS above (e.g. a custom status added via
+// Settings) used to all fall back to the SAME indigo color, so the donut
+// chart could no longer distinguish between two or more custom statuses.
+// Each unrecognized name now gets its own color from this palette instead,
+// assigned in the order it's first encountered.
+const FALLBACK_PALETTE = ['#6366f1', '#ec4899', '#14b8a6', '#f97316', '#8b5cf6', '#0ea5e9', '#84cc16', '#e11d48'];
+
+/**
+ * Tracks whether the app's dark theme is active (toggled via a `dark`
+ * class on <html>, see App.tsx) so Recharts tooltips — which take plain
+ * inline styles, not Tailwind classes — can match instead of always
+ * rendering as a dark box regardless of the page's current theme.
+ */
+function useIsDarkMode(): boolean {
+  const [isDark, setIsDark] = useState(
+    () => typeof document !== 'undefined' && document.documentElement.classList.contains('dark')
+  );
+
+  useEffect(() => {
+    const root = document.documentElement;
+    const observer = new MutationObserver(() => setIsDark(root.classList.contains('dark')));
+    observer.observe(root, { attributes: true, attributeFilter: ['class'] });
+    return () => observer.disconnect();
+  }, []);
+
+  return isDark;
+}
 
 export const AnalyticsCharts: React.FC<AnalyticsChartsProps> = ({ items }) => {
+  const isDark = useIsDarkMode();
+  const tooltipStyle = {
+    borderRadius: '12px',
+    fontSize: '11px',
+    border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`,
+    backgroundColor: isDark ? '#0f172a' : '#ffffff',
+    color: isDark ? '#f8fafc' : '#0f172a',
+  };
+
   // 1. Status Data
   const statusCounts: Record<string, number> = {};
   items.forEach(item => {
@@ -39,11 +75,11 @@ export const AnalyticsCharts: React.FC<AnalyticsChartsProps> = ({ items }) => {
     statusCounts[s] = (statusCounts[s] || 0) + 1;
   });
 
-  const statusData = Object.entries(statusCounts).map(([name, value]) => ({
-    name,
-    value,
-    color: STATUS_COLORS[name] || DEFAULT_COLOR,
-  }));
+  let fallbackColorIdx = 0;
+  const statusData = Object.entries(statusCounts).map(([name, value]) => {
+    const color = STATUS_COLORS[name] || FALLBACK_PALETTE[fallbackColorIdx++ % FALLBACK_PALETTE.length];
+    return { name, value, color };
+  });
 
   // 2. Output Data
   const outputCounts: Record<string, number> = {};
@@ -68,6 +104,14 @@ export const AnalyticsCharts: React.FC<AnalyticsChartsProps> = ({ items }) => {
     .sort((a, b) => b.count - a.count);
 
   // 4. Date/Timeline Trend Data (Grouping by diperbarui date string)
+  //
+  // items arrives newest-created-first (subscribeToUserLinks orders by
+  // created_at desc), so Object.entries(dateCounts) below lists each
+  // distinct date in "first seen while scanning newest-to-oldest" order —
+  // NOT chronological order. `.slice(-7)` on that unsorted list grabbed
+  // the last 7 entries of a newest-first list, i.e. the 7 OLDEST distinct
+  // dates, the opposite of the "recent trend" the chart's own label
+  // promises. Sorting by the actual parsed date before slicing fixes it.
   const dateCounts: Record<string, number> = {};
   items.forEach(item => {
     const d = item.diperbarui || 'Lainnya';
@@ -75,8 +119,10 @@ export const AnalyticsCharts: React.FC<AnalyticsChartsProps> = ({ items }) => {
   });
 
   const timelineData = Object.entries(dateCounts)
-    .map(([date, total]) => ({ date, total }))
-    .slice(-7); // last 7 distinct dates
+    .map(([date, total]) => ({ date, total, ts: parseDateToTimestamp(date) ?? 0 }))
+    .sort((a, b) => a.ts - b.ts)
+    .slice(-7) // last 7 distinct dates, chronologically — not insertion order
+    .map(({ date, total }) => ({ date, total }));
 
   if (items.length === 0) {
     return (
@@ -136,13 +182,7 @@ export const AnalyticsCharts: React.FC<AnalyticsChartsProps> = ({ items }) => {
                   ))}
                 </Pie>
                 <Tooltip
-                  contentStyle={{
-                    borderRadius: '12px',
-                    fontSize: '11px',
-                    border: '1px solid #334155',
-                    backgroundColor: '#0f172a',
-                    color: '#f8fafc',
-                  }}
+                  contentStyle={tooltipStyle}
                 />
               </PieChart>
             </ResponsiveContainer>
@@ -178,13 +218,7 @@ export const AnalyticsCharts: React.FC<AnalyticsChartsProps> = ({ items }) => {
                 <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#94a3b8' }} />
                 <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} allowDecimals={false} />
                 <Tooltip
-                  contentStyle={{
-                    borderRadius: '12px',
-                    fontSize: '11px',
-                    border: '1px solid #334155',
-                    backgroundColor: '#0f172a',
-                    color: '#f8fafc',
-                  }}
+                  contentStyle={tooltipStyle}
                 />
                 <Bar dataKey="count" fill="#6366f1" radius={[6, 6, 0, 0]} />
               </BarChart>
@@ -215,13 +249,7 @@ export const AnalyticsCharts: React.FC<AnalyticsChartsProps> = ({ items }) => {
                 <XAxis type="number" tick={{ fontSize: 10, fill: '#94a3b8' }} allowDecimals={false} />
                 <YAxis dataKey="name" type="category" tick={{ fontSize: 10, fill: '#94a3b8' }} />
                 <Tooltip
-                  contentStyle={{
-                    borderRadius: '12px',
-                    fontSize: '11px',
-                    border: '1px solid #334155',
-                    backgroundColor: '#0f172a',
-                    color: '#f8fafc',
-                  }}
+                  contentStyle={tooltipStyle}
                 />
                 <Bar dataKey="count" fill="#0284c7" radius={[0, 6, 6, 0]} />
               </BarChart>
@@ -256,13 +284,7 @@ export const AnalyticsCharts: React.FC<AnalyticsChartsProps> = ({ items }) => {
                 <XAxis dataKey="date" tick={{ fontSize: 9, fill: '#94a3b8' }} />
                 <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} allowDecimals={false} />
                 <Tooltip
-                  contentStyle={{
-                    borderRadius: '12px',
-                    fontSize: '11px',
-                    border: '1px solid #334155',
-                    backgroundColor: '#0f172a',
-                    color: '#f8fafc',
-                  }}
+                  contentStyle={tooltipStyle}
                 />
                 <Area
                   type="monotone"
