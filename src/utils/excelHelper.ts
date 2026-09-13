@@ -134,10 +134,21 @@ export async function parseExcelFile(
     // Check 1: Native cell hyperlink (cell.l.Target)
     if (cellObj && cellObj.l && cellObj.l.Target) {
       const targetUrl = cleanUrl(String(cellObj.l.Target));
-      const cellText = rawLinkValue || defaultName;
+      // An explicit Nama column always wins over the link cell's own
+      // displayed text. Previously this was `rawLinkValue || defaultName`
+      // — but rawLinkValue is the Link cell's own display text, which for
+      // a native Excel hyperlink is virtually always the URL itself (that
+      // is what Excel shows by default when you paste/auto-link a URL).
+      // Since that's truthy, defaultName never won, so every row where
+      // the Link column happened to be a real Excel hyperlink silently
+      // lost its Nama column value and showed the raw URL as the name
+      // instead — reported live as "nama hilang, muncul link-nya saja".
+      // rawLinkValue is still the right fallback for a hyperlink with
+      // custom display text and no separate Nama column at all.
+      const cellText = defaultName || rawLinkValue;
       rowExtractedLinks.push({
         url: targetUrl,
-        name: cellText || defaultName,
+        name: cellText,
         hasExtracted: true,
       });
       extractedFromNamesCount++;
