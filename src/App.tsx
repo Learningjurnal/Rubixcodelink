@@ -157,11 +157,20 @@ export default function App() {
 
   // 4 External Hard Drives State
   const [hardDrives, setHardDrives] = useState<HardDriveProfile[]>(() => {
+    // Same bug class as the folders fallback fixed earlier: requiring
+    // `parsed.length > 0` meant a user who deliberately deleted every HDD
+    // entry and saved (a legitimate empty configuration) got the
+    // hardcoded DEFAULT_HARD_DRIVES sample profiles back on the next
+    // load instead — indistinguishable from a delete/reset that silently
+    // didn't take. `saved` being present at all (even as `[]`) means the
+    // user has already made a real, explicit choice here; only fall back
+    // to the bundled defaults when there is truly no saved value yet
+    // (first-ever visit).
     try {
       const saved = localStorage.getItem('rubixxx_hard_drives');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed)) return parsed;
       }
     } catch {}
     return DEFAULT_HARD_DRIVES;
