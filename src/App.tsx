@@ -54,7 +54,7 @@ import {
 } from './types';
 import { INITIAL_LINKS } from './data/initialData';
 import { INITIAL_FOLDERS, INITIAL_STORAGE_OVERVIEW } from './data/initialStorageData';
-import { DEFAULT_HARD_DRIVES, INITIAL_SAMPLE_FOLDERS } from './utils/storageExcelHelper';
+import { DEFAULT_HARD_DRIVES } from './utils/storageExcelHelper';
 import { CommandCenterKPIs } from './components/CommandCenterKPIs';
 import { StorageManagementCard } from './components/StorageManagementCard';
 import { LinkManagementCard } from './components/LinkManagementCard';
@@ -133,6 +133,18 @@ export default function App() {
 
   // Storage Management State - Isolated per authenticated user
   const [folders, setFolders] = useState<StorageFolder[]>(() => {
+    // Previously fell back to INITIAL_SAMPLE_FOLDERS (a hardcoded demo
+    // dataset — "Koleksi Film 4K & Series", "3D Render & Asset Library",
+    // etc., none of it backed by any real database row) whenever there
+    // was no cached local copy yet. That's indistinguishable from real
+    // data in the UI, and it IS what a user with a genuinely empty
+    // Supabase user_folders table sees and tries to manage — confirmed
+    // live: every "delete" attempt against it fails because these
+    // subfolder objects have no `id` field and no backing row to delete,
+    // which is exactly the "tidak punya id database yang valid" report
+    // this was traced back to. An empty array here (and in the live
+    // subscription callback below) lets the real "no folders yet" empty
+    // state render honestly instead.
     try {
       const saved = localStorage.getItem('rubixxx_folders_active');
       if (saved) {
@@ -140,7 +152,7 @@ export default function App() {
         if (Array.isArray(parsed) && parsed.length > 0) return parsed;
       }
     } catch {}
-    return INITIAL_SAMPLE_FOLDERS;
+    return [];
   });
 
   // 4 External Hard Drives State
@@ -467,11 +479,21 @@ export default function App() {
           setFolders(userFolders);
           repairMissingSubfolderIds(userFolders);
         } else {
-          setFolders(prev => (prev.length > 0 ? prev : INITIAL_SAMPLE_FOLDERS));
+          // Genuinely zero folders in this user's Supabase user_folders
+          // table is a real, valid state (a brand new account, or an
+          // account that hasn't imported/created anything yet) — show
+          // that honestly instead of substituting the hardcoded demo
+          // dataset (see the useState initializer above for the full
+          // story on why that substitution was actively harmful).
+          setFolders([]);
         }
       },
       err => {
         console.warn('Error subscribing to user folders:', err);
+        addToast(
+          'error',
+          `Gagal memuat data folder dari database: ${err?.message || 'periksa koneksi/sesi login Anda.'} — data yang tampil mungkin tidak akurat.`
+        );
       }
     );
 
