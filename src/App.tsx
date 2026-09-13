@@ -68,6 +68,7 @@ import { UploadExcelModal } from './components/UploadExcelModal';
 import { AddLinkModal } from './components/AddLinkModal';
 import { BatchActionsBar } from './components/BatchActionsBar';
 import { SettingsModal } from './components/SettingsModal';
+import { ResetDataModal } from './components/ResetDataModal';
 import { AuthModal } from './components/AuthModal';
 import { ExtractLinkModal } from './components/ExtractLinkModal';
 import { AnalyticsCharts } from './components/AnalyticsCharts';
@@ -259,6 +260,7 @@ export default function App() {
   // Settings State
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+  const [isResetCenterOpen, setIsResetCenterOpen] = useState(false);
 
   // Modals & Panels
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
@@ -660,6 +662,7 @@ export default function App() {
   // Status and data update handlers with Firestore sync
   const handleUpdateStatus = async (id: string, newStatus: LinkStatus) => {
     const today = formatDateNow();
+    const previous = items.find(item => item.id === id);
     const updates: Partial<LinkItem> = {
       status: newStatus,
       diperbarui: today,
@@ -675,9 +678,19 @@ export default function App() {
       try {
         await updateUserLinkInFirestore(currentUser.uid, id, updates);
         addToast('success', `Status tautan diperbarui menjadi "${newStatus}".`);
-      } catch (e) {
+      } catch (e: any) {
         console.error('Firestore update error:', e);
-        addToast('info', `Status disimpan secara lokal.`);
+        // Previously this just showed a soft "disimpan secara lokal" info
+        // toast and left the optimistic update in place — meaning the row
+        // visibly showed the new status, the user believed it stuck, and
+        // it silently reverted to the old value on the next refetch/reload
+        // with nothing in the UI ever having said so. Revert the optimistic
+        // change and show a real error instead: the status genuinely did
+        // not change.
+        if (previous) {
+          setItems(prev => prev.map(item => (item.id === id ? previous : item)));
+        }
+        addToast('error', `Gagal menyimpan perubahan status: ${e?.message || 'periksa koneksi/sesi login Anda.'} Status dikembalikan ke semula.`);
       }
     }
   };
@@ -1081,6 +1094,34 @@ export default function App() {
     }
   };
 
+  // --- Reset & Cleanup Center (ResetDataModal) --------------------------
+  // Unlike handleClearAllData above (which has its own window.confirm),
+  // these don't confirm on their own — ResetDataModal already gets
+  // explicit confirmation (typed "HAPUS", or the 1-click button) before
+  // calling onClearDatabase, and renders its own success/error state, so
+  // failures here must throw rather than being swallowed silently.
+  const handleResetFiltersAction = () => {
+    setSearchQuery('');
+    setActiveFilter('ALL');
+    setStartDate('');
+    setEndDate('');
+    setSelectedIds(new Set());
+  };
+
+  const handleResetSettingsToDefaultAction = async () => {
+    setSettings(DEFAULT_SETTINGS);
+    if (currentUser) {
+      await saveUserSettingsToFirestore(currentUser.uid, DEFAULT_SETTINGS);
+    }
+  };
+
+  const handleClearDatabaseAction = async () => {
+    if (!currentUser) throw new Error('Sesi login tidak ditemukan.');
+    await clearAllUserLinksFromFirestore(currentUser.uid);
+    setItems([]);
+    setSelectedIds(new Set());
+  };
+
   // Import from Excel handler with User-isolated Firestore Batch
   const handleImportComplete = async (
     newItems: LinkItem[],
@@ -1119,10 +1160,20 @@ export default function App() {
         msg += ` (${skippedDuplicatesCount} duplikat dicegah)`;
       }
       addToast('success', msg);
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
-      setItems(prev => [...newItems, ...prev]);
-      addToast('warning', `Disimpan secara lokal (${newItems.length} link).`);
+      // Previously this kept the imported items in local state only and
+      // showed a soft "disimpan secara lokal" warning — the whole import
+      // looked successful, then vanished on the next refresh/refetch since
+      // it was never actually written to the database. Don't keep a
+      // phantom local copy: show a real error and let the user retry the
+      // import (the file/paste is still there, nothing to lose by trying
+      // again once the underlying problem — usually the session — is
+      // fixed).
+      addToast(
+        'error',
+        `Gagal menyimpan ${newItems.length} link hasil import ke database — TIDAK tersimpan. ${e?.message || 'periksa koneksi/sesi login Anda.'} Coba import ulang.`
+      );
     }
   };
 
@@ -1210,14 +1261,17 @@ export default function App() {
           msg += ` (${duplicatesCount} duplikat diabaikan)`;
         }
         addToast('success', msg);
-      } catch (e) {
+      } catch (e: any) {
         console.error('Error batch adding imported JSON to Firestore:', e);
-        const withIds: LinkItem[] = newLinks.map((l, idx) => ({
-          ...l,
-          id: l.id || `imported-${Date.now()}-${idx}`,
-        }));
-        setItems(prev => [...withIds, ...prev]);
-        addToast('warning', `Disimpan secara lokal (${newLinks.length} tautan).`);
+        // Previously kept the restored items in local state only with a
+        // soft warning toast — the restore looked successful and then
+        // vanished on the next refresh, since a backup restore is exactly
+        // the moment a user least wants a silent phantom copy. Show a real
+        // error and let them retry the restore instead.
+        addToast(
+          'error',
+          `Gagal memulihkan ${newLinks.length} tautan dari file JSON — TIDAK tersimpan ke database. ${e?.message || 'periksa koneksi/sesi login Anda.'} Coba pulihkan ulang.`
+        );
       }
     } else {
       const withIds: LinkItem[] = newLinks.map((l, idx) => ({
@@ -1313,13 +1367,12 @@ export default function App() {
       addToast('success', `Folder "${newFolder.name}" berhasil dibuat di database.`);
     } catch (e: any) {
       console.error(e);
-      const localFolder: StorageFolder = {
-        ...newFolder,
-        id: `folder-${Date.now()}`,
-        ownerName: currentUser.displayName || currentUser.email?.split('@')[0] || 'Saya',
-      };
-      setFolders(prev => [localFolder, ...prev]);
-      addToast('info', `Folder disimpan secara lokal.`);
+      // Previously created a folder in local state only, with an id that
+      // never existed in Supabase — it would look created, then disappear
+      // on the next folders refetch (which overwrites local state with
+      // whatever's actually in the database, i.e. not this folder). Don't
+      // create a phantom folder: show a real error instead.
+      addToast('error', `Folder "${newFolder.name}" GAGAL dibuat — TIDAK tersimpan ke database. ${e?.message || 'periksa koneksi/sesi login Anda.'}`);
     }
   };
 
@@ -2093,6 +2146,18 @@ export default function App() {
                 <span className="hidden xl:inline">Opsi</span>
               </button>
 
+              {/* Reset & Cleanup Data Center */}
+              <button
+                type="button"
+                id="btn-open-reset-center"
+                onClick={() => setIsResetCenterOpen(true)}
+                className="px-3 py-2 text-xs font-semibold bg-white dark:bg-slate-800 border border-slate-200/90 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl transition flex items-center gap-1.5 shadow-2xs cursor-pointer"
+                title="Reset filter, opsi pengaturan, atau bersihkan seluruh data tautan"
+              >
+                <RotateCcw className="w-4 h-4 text-slate-600 dark:text-slate-400" />
+                <span className="hidden xl:inline">Reset Data</span>
+              </button>
+
               {/* Authenticated User Profile (Strictly Real User, No Dummy Data) */}
               <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-2xl px-3 py-1.5 shadow-2xs">
                 <div className="w-7 h-7 rounded-full bg-indigo-600 text-white flex items-center justify-center text-xs font-bold">
@@ -2632,6 +2697,17 @@ export default function App() {
         totalLinksCount={items.length}
         onExportJSON={handleExportJSON}
         onImportJSON={handleImportJSON}
+        onNotify={(type, msg) => addToast(type, msg)}
+      />
+
+      {/* Reset & Cleanup Data Center */}
+      <ResetDataModal
+        isOpen={isResetCenterOpen}
+        onClose={() => setIsResetCenterOpen(false)}
+        onResetFilters={handleResetFiltersAction}
+        onResetSettings={handleResetSettingsToDefaultAction}
+        onClearDatabase={handleClearDatabaseAction}
+        totalLinksCount={items.length}
       />
 
       {/* Auth Modal (Email Login / Register) */}

@@ -24,6 +24,7 @@ interface SettingsModalProps {
   totalLinksCount?: number;
   onExportJSON?: () => void;
   onImportJSON?: (items: LinkItem[]) => Promise<void> | void;
+  onNotify?: (type: 'success' | 'warning' | 'info' | 'error', message: string) => void;
 }
 
 type ActiveTab = 'status' | 'output' | 'region' | 'note';
@@ -37,7 +38,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   totalLinksCount = 0,
   onExportJSON,
   onImportJSON,
+  onNotify,
 }) => {
+  // Falls back to a plain alert() only if the caller didn't wire up
+  // onNotify — every real usage in this app does, so this keeps the
+  // component safely standalone without silently swallowing the message.
+  const notify = (type: 'success' | 'warning' | 'info' | 'error', message: string) => {
+    if (onNotify) onNotify(type, message);
+    else alert(message);
+  };
+
   const [activeTab, setActiveTab] = useState<ActiveTab>('status');
   const [statusList, setStatusList] = useState<string[]>(settings.statusOptions);
   const [outputList, setOutputList] = useState<string[]>(settings.outputOptions);
@@ -119,7 +129,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       }, 700);
     } catch (err) {
       console.error('Failed to save settings:', err);
-      alert('Gagal menyimpan pengaturan ke database.');
+      notify('error', 'Gagal menyimpan pengaturan ke database.');
     } finally {
       setSaving(false);
     }
@@ -142,7 +152,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         } else if (parsed && typeof parsed === 'object' && Array.isArray(parsed.links)) {
           linksArray = parsed.links;
         } else {
-          alert('Format JSON tidak valid. File harus berupa array tautan atau objek dengan properti "links".');
+          notify('error', 'Format JSON tidak valid. File harus berupa array tautan atau objek dengan properti "links".');
           setIsImportingJSON(false);
           return;
         }
@@ -170,7 +180,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           }));
 
         if (validLinks.length === 0) {
-          alert('Tidak ditemukan tautan yang valid di dalam file JSON tersebut.');
+          notify('error', 'Tidak ditemukan tautan yang valid di dalam file JSON tersebut.');
           setIsImportingJSON(false);
           return;
         }
@@ -180,7 +190,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         }
       } catch (err) {
         console.error('Error parsing JSON backup file:', err);
-        alert('Gagal membaca file JSON. Pastikan format file valid.');
+        notify('error', 'Gagal membaca file JSON. Pastikan format file valid.');
       } finally {
         setIsImportingJSON(false);
         if (jsonFileInputRef.current) {
