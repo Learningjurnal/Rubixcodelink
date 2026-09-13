@@ -340,6 +340,13 @@ export default function App() {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
 
+  // Name-presence filter — added after user feedback: many imported links
+  // intentionally have no Nama value (confirmed against the real source
+  // file — the app was rendering it correctly), but with search alone
+  // there was no quick way to isolate "which rows actually have a name"
+  // versus the much larger set that don't, to sample-check or fill them in.
+  const [nameFilter, setNameFilter] = useState<'all' | 'named' | 'unnamed'>('all');
+
   // Sorting
   const [sortField, setSortField] = useState<SortField>('diperbarui');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
@@ -593,6 +600,14 @@ export default function App() {
     setEndDate('');
   };
 
+  // Count of links with no Nama value at all, for the name-presence filter
+  // badge below — independent of any active filter, always reflects the
+  // full dataset so the badge doesn't move around as other filters change.
+  const unnamedLinksCount = useMemo(
+    () => items.filter(i => !i.name || i.name.trim() === '').length,
+    [items]
+  );
+
   // Filter and Sort Items
   const filteredItems = useMemo(() => {
     let result = [...items];
@@ -608,6 +623,13 @@ export default function App() {
       );
     } else if (activeFilter !== 'ALL') {
       result = result.filter(i => i.status === activeFilter);
+    }
+
+    // Name-presence filter
+    if (nameFilter === 'named') {
+      result = result.filter(i => i.name && i.name.trim() !== '');
+    } else if (nameFilter === 'unnamed') {
+      result = result.filter(i => !i.name || i.name.trim() === '');
     }
 
     // Date Range Period filter (Periode XXX ke XXX)
@@ -650,7 +672,7 @@ export default function App() {
     }
 
     return result;
-  }, [items, activeFilter, searchQuery, sortField, sortDirection, startDate, endDate]);
+  }, [items, activeFilter, nameFilter, searchQuery, sortField, sortDirection, startDate, endDate]);
 
   // Selection handlers
   const handleToggleSelect = (id: string) => {
@@ -2364,6 +2386,63 @@ export default function App() {
                       Clear
                     </button>
                   )}
+                </div>
+
+                {/* Filter Nama: isolates rows that DO / DON'T have a Nama
+                    value, since a search-only approach makes it hard to
+                    tell "no matches" apart from "this link just has no
+                    name" when most of the list is unnamed on purpose. */}
+                <div className="inline-flex p-1 bg-slate-100 dark:bg-slate-800 rounded-2xl border border-slate-200/70 dark:border-slate-700/60 shrink-0">
+                  <button
+                    type="button"
+                    id="btn-name-filter-all"
+                    onClick={() => setNameFilter('all')}
+                    className={`px-3 py-1.5 text-xs font-bold rounded-xl transition cursor-pointer ${
+                      nameFilter === 'all'
+                        ? 'bg-white dark:bg-slate-900 text-indigo-700 dark:text-indigo-400 shadow-2xs'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                    }`}
+                    title="Tampilkan semua link, terlepas dari ada/tidaknya nama"
+                  >
+                    Semua Nama
+                  </button>
+                  <button
+                    type="button"
+                    id="btn-name-filter-named"
+                    onClick={() => setNameFilter('named')}
+                    className={`px-3 py-1.5 text-xs font-bold rounded-xl transition cursor-pointer ${
+                      nameFilter === 'named'
+                        ? 'bg-white dark:bg-slate-900 text-emerald-700 dark:text-emerald-400 shadow-2xs'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                    }`}
+                    title="Hanya tampilkan link yang sudah punya nama"
+                  >
+                    Ada Nama
+                  </button>
+                  <button
+                    type="button"
+                    id="btn-name-filter-unnamed"
+                    onClick={() => setNameFilter('unnamed')}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-xl transition cursor-pointer ${
+                      nameFilter === 'unnamed'
+                        ? 'bg-white dark:bg-slate-900 text-rose-700 dark:text-rose-400 shadow-2xs'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                    }`}
+                    title="Hanya tampilkan link yang belum punya nama"
+                  >
+                    <span>Tanpa Nama</span>
+                    {unnamedLinksCount > 0 && (
+                      <span
+                        className={`px-1.5 py-0.5 rounded-md text-[10px] font-bold ${
+                          nameFilter === 'unnamed'
+                            ? 'bg-rose-100 dark:bg-rose-950/70 text-rose-700 dark:text-rose-300'
+                            : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
+                        }`}
+                      >
+                        {unnamedLinksCount}
+                      </span>
+                    )}
+                  </button>
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
