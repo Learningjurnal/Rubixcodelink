@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { motion } from 'motion/react';
 import {
   ExternalLink,
@@ -18,6 +18,8 @@ import {
   Sparkles,
   Tag,
   Search,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import { LinkItem, LinkStatus, AppSettings, SortField, SortDirection } from '../types';
 import { Tooltip } from './Tooltip';
@@ -85,6 +87,31 @@ export const LinkTable: React.FC<LinkTableProps> = ({
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [tempNote, setTempNote] = useState('');
   const [lastClickedIndex, setLastClickedIndex] = useState<number | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(50);
+
+  // Rendering-only windowing: at large link counts (this app is built to
+  // handle thousands), mounting every row's dropdowns/tooltips/motion
+  // buttons at once made the table sluggish. Selection semantics are
+  // untouched — allSelected/onToggleSelectAll/range-select below all still
+  // operate on the full `items` array exactly as before, so "select all"
+  // still means every filtered link, not just the visible page, and
+  // Shift+click range math (which indexes into `items`, not
+  // paginatedItems) stays correct by computing each rendered row's real
+  // (global) index alongside its position on the page.
+  const totalPages = Math.ceil(items.length / itemsPerPage) || 1;
+  const paginatedItems = useMemo(
+    () => items.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage),
+    [items, currentPage, itemsPerPage]
+  );
+
+  // Clamp rather than force back to page 1 on every items change — a
+  // filter/search narrowing the list shouldn't yank the user back to the
+  // top if their current page is still valid, only when it no longer is
+  // (e.g. they were on page 5 and a filter now only has 2 pages).
+  useEffect(() => {
+    if (currentPage > totalPages) setCurrentPage(totalPages);
+  }, [totalPages, currentPage]);
 
   const allSelected = items.length > 0 && selectedIds.size === items.length;
 
@@ -409,7 +436,8 @@ export const LinkTable: React.FC<LinkTableProps> = ({
                 </td>
               </tr>
             ) : (
-              items.map((item, index) => {
+              paginatedItems.map((item, localIndex) => {
+                const index = (currentPage - 1) * itemsPerPage + localIndex;
                 const isSelected = selectedIds.has(item.id);
                 const isDownloaded = item.status === 'Sudah Terunduh';
 
@@ -726,6 +754,50 @@ export const LinkTable: React.FC<LinkTableProps> = ({
           </tbody>
         </table>
       </div>
+
+      {/* Pagination Footer */}
+      {items.length > 0 && totalPages > 1 && (
+        <div className="px-6 py-3 border-t border-slate-200/80 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3">
+          <button
+            type="button"
+            disabled={currentPage === 1}
+            onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+            className="px-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-200 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-100 dark:hover:bg-slate-700 transition flex items-center gap-1 cursor-pointer"
+          >
+            <ChevronLeft className="w-3.5 h-3.5" />
+            <span>Sebelumnya</span>
+          </button>
+
+          <div className="flex items-center gap-3">
+            <span className="text-xs text-slate-600 dark:text-slate-300 font-medium">
+              Halaman <strong>{currentPage}</strong> dari <strong>{totalPages}</strong> ({items.length.toLocaleString()} tautan)
+            </span>
+            <select
+              value={itemsPerPage}
+              onChange={e => {
+                setItemsPerPage(Number(e.target.value));
+                setCurrentPage(1);
+              }}
+              className="px-2 py-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-bold text-slate-700 dark:text-slate-200 cursor-pointer"
+            >
+              <option value={25}>25 / hal</option>
+              <option value={50}>50 / hal</option>
+              <option value={100}>100 / hal</option>
+              <option value={500}>500 / hal</option>
+            </select>
+          </div>
+
+          <button
+            type="button"
+            disabled={currentPage === totalPages}
+            onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+            className="px-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-200 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-100 dark:hover:bg-slate-700 transition flex items-center gap-1 cursor-pointer"
+          >
+            <span>Berikutnya</span>
+            <ChevronRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
     </div>
   );
 };

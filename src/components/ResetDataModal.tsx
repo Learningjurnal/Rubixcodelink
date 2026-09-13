@@ -8,15 +8,13 @@ import {
   AlertTriangle,
   CheckCircle2,
   Loader2,
-  Database,
-  Sparkles,
 } from 'lucide-react';
 
 interface ResetDataModalProps {
   isOpen: boolean;
   onClose: () => void;
   onResetFilters: () => void;
-  onResetSettings: () => void;
+  onResetSettings: () => Promise<void>;
   onClearDatabase: () => Promise<void>;
   totalLinksCount: number;
 }
@@ -32,6 +30,7 @@ export const ResetDataModal: React.FC<ResetDataModalProps> = ({
   const [confirmInput, setConfirmInput] = useState('');
   const [isDeletingDb, setIsDeletingDb] = useState(false);
   const [activeSuccessMsg, setActiveSuccessMsg] = useState('');
+  const [errorMsg, setErrorMsg] = useState('');
 
   if (!isOpen) return null;
 
@@ -44,34 +43,47 @@ export const ResetDataModal: React.FC<ResetDataModalProps> = ({
     }, 1200);
   };
 
-  const handleResetSettingsClick = () => {
-    onResetSettings();
-    setActiveSuccessMsg('Pengaturan opsi kategori dan preset berhasil dikembalikan ke default!');
-    setTimeout(() => {
-      setActiveSuccessMsg('');
-      onClose();
-    }, 1200);
+  const handleResetSettingsClick = async () => {
+    setErrorMsg('');
+    try {
+      await onResetSettings();
+      setActiveSuccessMsg('Pengaturan opsi kategori dan preset berhasil dikembalikan ke default!');
+      setTimeout(() => {
+        setActiveSuccessMsg('');
+        onClose();
+      }, 1200);
+    } catch (e: any) {
+      console.error('Reset settings error:', e);
+      setErrorMsg(`Gagal mengembalikan pengaturan ke default: ${e?.message || 'periksa koneksi/sesi login Anda.'}`);
+    }
   };
 
   const performWipeAll = async () => {
     setIsDeletingDb(true);
+    setErrorMsg('');
     try {
-      // Race against a safety timeout of 3.5 seconds max so it NEVER hangs
-      await Promise.race([
-        onClearDatabase(),
-        new Promise(resolve => setTimeout(resolve, 3500)),
-      ]);
-      setActiveSuccessMsg('Seluruh data tautan & informasi berhasil dibersihkan total (0 data)!');
-    } catch (e) {
-      console.error('Clear DB error:', e);
-      setActiveSuccessMsg('Data lokal berhasil dibersihkan total.');
-    } finally {
+      // Previously raced the real delete against a 3.5s timeout "so it
+      // never hangs" — but that meant a delete that genuinely took longer
+      // than 3.5s (slow connection, large dataset) still showed "berhasil
+      // dibersihkan total" via the timeout branch, while the real delete
+      // kept running unobserved in the background. For a permanent,
+      // irreversible action like this, a false "success" is worse than a
+      // wait: actually await the real result and only report what really
+      // happened.
+      await onClearDatabase();
+      setActiveSuccessMsg('Seluruh data tautan berhasil dibersihkan total dari database.');
       setTimeout(() => {
         setIsDeletingDb(false);
         setActiveSuccessMsg('');
         setConfirmInput('');
         onClose();
       }, 900);
+    } catch (e: any) {
+      console.error('Clear DB error:', e);
+      setIsDeletingDb(false);
+      setErrorMsg(
+        `Gagal membersihkan database: ${e?.message || 'periksa koneksi/sesi login Anda.'} Data TIDAK terhapus — aman, coba lagi.`
+      );
     }
   };
 
@@ -127,6 +139,14 @@ export const ResetDataModal: React.FC<ResetDataModalProps> = ({
           <div className="mx-6 mt-4 p-3 bg-emerald-50 dark:bg-emerald-950/80 border border-emerald-200 dark:border-emerald-800 rounded-2xl flex items-center gap-2 text-emerald-800 dark:text-emerald-200 text-xs font-semibold animate-in fade-in">
             <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
             <span>{activeSuccessMsg}</span>
+          </div>
+        )}
+
+        {/* Error Alert Banner */}
+        {errorMsg && (
+          <div className="mx-6 mt-4 p-3 bg-rose-50 dark:bg-rose-950/80 border border-rose-200 dark:border-rose-800 rounded-2xl flex items-center gap-2 text-rose-800 dark:text-rose-200 text-xs font-semibold animate-in fade-in">
+            <AlertTriangle className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0" />
+            <span>{errorMsg}</span>
           </div>
         )}
 
