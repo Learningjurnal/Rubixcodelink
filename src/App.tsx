@@ -99,6 +99,7 @@ import {
   deleteUserLinkFromFirestore,
   batchUpdateUserLinkStatusInFirestore,
   batchUpdateUserLinkTagInFirestore,
+  batchUpdateItemsInFirestore,
   batchDeleteUserLinksFromFirestore,
   clearAllUserLinksFromFirestore,
   subscribeToUserSettings,
@@ -782,6 +783,58 @@ export default function App() {
       } catch (e: any) {
         console.error(e);
         addToast('error', `Gagal menyimpan perubahan status ke database: ${e?.message || 'periksa koneksi/sesi login Anda.'}`);
+      }
+    }
+  };
+
+  // Bulk-apply a single Output/Region value to every currently selected
+  // link. BatchActionsBar's dropdowns for these were previously wired to
+  // handleUpdateOutput/handleUpdateRegion — single-item handlers shaped
+  // (id, value) => void — but BatchActionsBar calls them as (value) => void
+  // (it has no per-item id; it means "apply to the whole selection"). That
+  // mismatch meant the value string landed in the `id` parameter and the
+  // real id resolved to undefined, so the .map(item => item.id === id ? ...)
+  // never matched anything: nothing visibly changed, and the resulting
+  // Supabase call targeted a row id that doesn't exist. Reported as "belum
+  // ada fitur edit region bulk" — the control was there, just inert.
+  const handleBatchUpdateOutput = async (output: string) => {
+    const ids = Array.from(selectedIds) as string[];
+    if (ids.length === 0) return;
+
+    setItems(prev => prev.map(i => (selectedIds.has(i.id) ? { ...i, output } : i)));
+    setSelectedIds(new Set());
+
+    if (currentUser) {
+      try {
+        await batchUpdateItemsInFirestore(
+          ids.map(id => ({ id, changes: { output } })),
+          currentUser.uid
+        );
+        addToast('success', `${ids.length} link diubah output-nya menjadi "${output}".`);
+      } catch (e: any) {
+        console.error(e);
+        addToast('error', `Gagal menyimpan perubahan output massal: ${e?.message || 'periksa koneksi/sesi login Anda.'}`);
+      }
+    }
+  };
+
+  const handleBatchUpdateRegion = async (region: string) => {
+    const ids = Array.from(selectedIds) as string[];
+    if (ids.length === 0) return;
+
+    setItems(prev => prev.map(i => (selectedIds.has(i.id) ? { ...i, region } : i)));
+    setSelectedIds(new Set());
+
+    if (currentUser) {
+      try {
+        await batchUpdateItemsInFirestore(
+          ids.map(id => ({ id, changes: { region } })),
+          currentUser.uid
+        );
+        addToast('success', `${ids.length} link diubah region-nya menjadi "${region}".`);
+      } catch (e: any) {
+        console.error(e);
+        addToast('error', `Gagal menyimpan perubahan region massal: ${e?.message || 'periksa koneksi/sesi login Anda.'}`);
       }
     }
   };
@@ -2479,8 +2532,8 @@ export default function App() {
               onToggleSelectAll={handleToggleSelectAll}
               onSelectRange={handleSelectRange}
               onUpdateStatus={handleUpdateStatus}
-              onUpdateOutput={handleUpdateOutput}
-              onUpdateRegion={handleUpdateRegion}
+              onUpdateOutput={handleBatchUpdateOutput}
+              onUpdateRegion={handleBatchUpdateRegion}
               onUpdateNote={handleUpdateNote}
               onDownloadAndMark={handleDownloadAndMark}
               onCopyLink={handleCopyLink}
