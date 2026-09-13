@@ -361,6 +361,27 @@ export default function App() {
     };
   }, [isQuickSortMenuOpen]);
 
+  // Tambah Link / Upload Excel / Export Excel used to be 3 separate
+  // always-visible buttons in the toolbar — consolidated into one "Kelola
+  // Data" dropdown so the action bar reads as one control instead of a row
+  // of near-identical buttons.
+  const [isDataActionMenuOpen, setIsDataActionMenuOpen] = useState(false);
+  const dataActionMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (dataActionMenuRef.current && !dataActionMenuRef.current.contains(e.target as Node)) {
+        setIsDataActionMenuOpen(false);
+      }
+    };
+    if (isDataActionMenuOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isDataActionMenuOpen]);
+
   // Toasts
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
 
@@ -2346,33 +2367,72 @@ export default function App() {
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
-                  <button
-                    type="button"
-                    onClick={() => setIsUploadModalOpen(true)}
-                    className="flex items-center gap-2 px-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-2xl text-xs font-bold transition shadow-2xs cursor-pointer"
-                  >
-                    <Upload className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-                    <span>Upload Excel</span>
-                  </button>
+                  {/* Kelola Data dropdown — replaces 3 separate always-visible
+                      buttons (Upload Excel, Tambah Link, Export Excel) with
+                      one trigger, so the toolbar reads as one control. */}
+                  <div className="relative" ref={dataActionMenuRef}>
+                    <button
+                      type="button"
+                      id="btn-data-action-menu"
+                      onClick={() => setIsDataActionMenuOpen(prev => !prev)}
+                      className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl text-xs font-bold transition shadow-md shadow-indigo-200 dark:shadow-none cursor-pointer"
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span>Kelola Data</span>
+                      <ChevronDown
+                        className={`w-3.5 h-3.5 transition-transform duration-200 ${
+                          isDataActionMenuOpen ? 'rotate-180' : ''
+                        }`}
+                      />
+                    </button>
 
-                  <button
-                    type="button"
-                    onClick={() => setIsAddModalOpen(true)}
-                    className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl text-xs font-bold transition shadow-md shadow-indigo-200 dark:shadow-none cursor-pointer"
-                  >
-                    <Plus className="w-4 h-4" />
-                    <span>Tambah Link</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => exportToExcel(filteredItems)}
-                    className="flex items-center gap-2 px-3.5 py-2.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-2xl text-xs font-bold transition shadow-2xs cursor-pointer"
-                    title="Ekspor seluruh baris terfilter ke spreadsheet Excel (.xlsx)"
-                  >
-                    <Download className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                    <span className="hidden sm:inline">Export Excel</span>
-                  </button>
+                    {isDataActionMenuOpen && (
+                      <div
+                        id="data-action-dropdown-popover"
+                        className="absolute left-0 mt-2 w-64 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xl z-50 p-2 space-y-1 animate-in fade-in zoom-in-95 duration-150"
+                      >
+                        <button
+                          type="button"
+                          id="btn-menu-add-link"
+                          onClick={() => {
+                            setIsAddModalOpen(true);
+                            setIsDataActionMenuOpen(false);
+                          }}
+                          className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-indigo-50 dark:hover:bg-indigo-950/50 transition cursor-pointer"
+                        >
+                          <Plus className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                          <span>Tambah Link Manual</span>
+                        </button>
+                        <button
+                          type="button"
+                          id="btn-menu-upload-excel"
+                          onClick={() => {
+                            setIsUploadModalOpen(true);
+                            setIsDataActionMenuOpen(false);
+                          }}
+                          className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-indigo-50 dark:hover:bg-indigo-950/50 transition cursor-pointer"
+                        >
+                          <Upload className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                          <span>Upload Excel</span>
+                        </button>
+                        <div className="pt-1 mt-1 border-t border-slate-100 dark:border-slate-800/80">
+                          <button
+                            type="button"
+                            id="btn-menu-export-excel"
+                            onClick={() => {
+                              exportToExcel(filteredItems);
+                              setIsDataActionMenuOpen(false);
+                            }}
+                            className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 transition cursor-pointer"
+                            title="Ekspor seluruh baris terfilter ke spreadsheet Excel (.xlsx)"
+                          >
+                            <Download className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                            <span>Export Excel</span>
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
 
                   {/* Instant Quick Sort Button & Popover */}
                   <div className="relative" ref={quickSortMenuRef}>
