@@ -28,6 +28,24 @@ export function findHeaderIndex(headers: string[], candidates: string[]): number
 }
 
 /**
+ * True when `text` wouldn't add any real information as a "name" beyond
+ * the URL itself — either it looks like a URL on its own, or it's the
+ * same URL as `url` (after cleanUrl) just possibly re-cased/re-trimmed.
+ * Used to decide whether a link cell's own display text is a genuine
+ * custom label (worth using as the item's name) versus just the link
+ * showing up twice — once as "name", once again as the link line right
+ * underneath it. When there's no real label, the caller should leave the
+ * name empty rather than fall back to this text.
+ */
+function looksLikeBareUrl(text: string, url?: string | null): boolean {
+  const t = text.trim();
+  if (!t) return true;
+  if (/^https?:\/\//i.test(t)) return true;
+  if (url && cleanUrl(t).toLowerCase() === cleanUrl(url).toLowerCase()) return true;
+  return false;
+}
+
+/**
  * Parse Excel with support for:
  * 1. Cell Hyperlinks (cell.l.Target where link is embedded inside a text cell)
  * 2. Excel Formulas (=HYPERLINK("https://...", "Label"))
@@ -151,9 +169,18 @@ export async function parseExcelFile(
       // the Link column happened to be a real Excel hyperlink silently
       // lost its Nama column value and showed the raw URL as the name
       // instead — reported live as "nama hilang, muncul link-nya saja".
-      // rawLinkValue is still the right fallback for a hyperlink with
-      // custom display text and no separate Nama column at all.
-      const cellText = defaultName || rawLinkValue;
+      //
+      // rawLinkValue is still a legitimate fallback for a hyperlink with
+      // a genuine custom display text and no separate Nama column at all
+      // (e.g. the cell shows "Episode 1" but links elsewhere) — but only
+      // when it's an actual label. A file with no Nama column at all,
+      // where every link cell's own display text is just the URL again
+      // (the common case when pasting raw URLs, which Excel auto-links),
+      // was still ending up with name = link — reported as "nama tidak
+      // teridentifikasi, hanya copas dari link". Per explicit request:
+      // when there's no real name, leave it empty rather than duplicate
+      // the link as if it were one.
+      const cellText = defaultName || (rawLinkValue && !looksLikeBareUrl(rawLinkValue, targetUrl) ? rawLinkValue : '');
       rowExtractedLinks.push({
         url: targetUrl,
         name: cellText,
@@ -168,7 +195,10 @@ export async function parseExcelFile(
       if (formulaExtracted.url) {
         rowExtractedLinks.push({
           url: formulaExtracted.url,
-          name: formulaExtracted.name || defaultName || rawLinkValue,
+          name:
+            formulaExtracted.name ||
+            defaultName ||
+            (rawLinkValue && !looksLikeBareUrl(rawLinkValue, formulaExtracted.url) ? rawLinkValue : ''),
           hasExtracted: true,
         });
         extractedFromNamesCount++;
@@ -220,9 +250,11 @@ export async function parseExcelFile(
         const otherCellAddr = XLSX.utils.encode_cell({ r, c });
         const otherCell = worksheet[otherCellAddr];
         if (otherCell && otherCell.l && otherCell.l.Target) {
+          const otherUrl = cleanUrl(String(otherCell.l.Target));
+          const otherCellText = String(row[c] || '').trim();
           rowExtractedLinks.push({
-            url: cleanUrl(String(otherCell.l.Target)),
-            name: String(row[c] || defaultName).trim(),
+            url: otherUrl,
+            name: defaultName || (otherCellText && !looksLikeBareUrl(otherCellText, otherUrl) ? otherCellText : ''),
             hasExtracted: true,
           });
           extractedFromNamesCount++;
